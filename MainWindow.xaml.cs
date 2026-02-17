@@ -72,10 +72,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly List<double> _tempHistory = [];
     private readonly ObservableCollection<ControllerDeviceItem> _controllerDevices = [];
     private readonly ObservableCollection<FortniteRegionItem> _fortniteRegions = [];
+    private readonly ObservableCollection<FortniteServerPingItem> _fortniteServerPings = [];
     private double? _latestCpuTempC;
     private double? _latestGpuTempC;
     private bool _isRefreshingTweakStates;
     private bool _suppressToggleEvents;
+    private bool _isPingingFortniteServers;
+    private DateTime _lastFortnitePingUtc = DateTime.MinValue;
     private DateTime _lastCoreTempProbeUtc = DateTime.MinValue;
     private bool _coreTempAvailable;
     private float _coreTempCpuSpeedMhz;
@@ -534,6 +537,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    public ObservableCollection<FortniteServerPingItem> FortniteServerPings => _fortniteServerPings;
+
     public string SystemSpecsText
     {
         get => _systemSpecsText;
@@ -648,6 +653,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         SetGameProfilesView();
         ReloadFortniteRegionState();
+        LoadFortniteServerTargets();
+        _ = PingFortniteServersAsync(force: false);
         StatusText = "Game Profiles";
         OutputTextBox.Text = "Game Profiles view active. Configure per-game settings below.";
     }
@@ -1660,6 +1667,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         FortniteRegionComboBox.SelectedValue = "AUTO";
     }
 
+    private void LoadFortniteServerTargets()
+    {
+        if (_fortniteServerPings.Count > 0)
+        {
+            return;
+        }
+
+        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "North America East", Code = "NAE", Hostname = "ec2.us-east-1.amazonaws.com", PingText = "--" });
+        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "North America Central", Code = "NAC", Hostname = "ec2.us-east-2.amazonaws.com", PingText = "--" });
+        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "North America West", Code = "NAW", Hostname = "ec2.us-west-2.amazonaws.com", PingText = "--" });
+        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "Europe", Code = "EU", Hostname = "ec2.eu-central-1.amazonaws.com", PingText = "--" });
+        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "Brazil", Code = "BR", Hostname = "ec2.sa-east-1.amazonaws.com", PingText = "--" });
+        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "Asia", Code = "ASIA", Hostname = "ec2.ap-northeast-1.amazonaws.com", PingText = "--" });
+        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "Oceania", Code = "OCE", Hostname = "ec2.ap-southeast-2.amazonaws.com", PingText = "--" });
+        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "Middle East", Code = "ME", Hostname = "ec2.me-south-1.amazonaws.com", PingText = "--" });
+    }
+
     private void ReloadFortniteRegionState()
     {
         LoadFortniteRegionOptions();
@@ -1697,9 +1721,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void SuggestFortniteRegionButton_Click(object sender, RoutedEventArgs e)
     {
         LoadFortniteRegionOptions();
-        var suggested = SuggestClosestFortniteRegion();
+        var bestMeasured = _fortniteServerPings
+            .Where(s => s.PingMs.HasValue)
+            .OrderBy(s => s.PingMs!.Value)
+            .FirstOrDefault();
+        var suggested = bestMeasured?.Code ?? SuggestClosestFortniteRegion();
         FortniteRegionComboBox.SelectedValue = suggested;
-        FortniteRegionStatusText = $"Suggested region based on local timezone: {suggested}";
+        FortniteRegionStatusText = bestMeasured is null
+            ? $"Suggested region based on local timezone: {suggested}"
+            : $"Suggested best measured region: {suggested} ({bestMeasured.PingMs:0} ms)";
         StatusText = "Fortnite region suggested";
     }
 
@@ -1829,6 +1859,96 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return "AUTO";
     }
 
+    private async void PingFortniteServersButton_Click(object sender, RoutedEventArgs e)
+    {
+        await PingFortniteServersAsync(force: true);
+    }
+
+    private async Task PingFortniteServersAsync(bool force)
+    {
+        LoadFortniteServerTargets();
+        if (_isPingingFortniteServers)
+        {
+            return;
+        }
+
+        if (!force && (DateTime.UtcNow - _lastFortnitePingUtc).TotalSeconds < 30)
+        {
+            return;
+        }
+
+        _isPingingFortniteServers = true;
+        StatusText = "Pinging Fortnite servers...";
+        FortniteRegionStatusText = "Measuring ping for all Fortnite regions...";
+        foreach (var server in _fortniteServerPings)
+        {
+            server.PingMs = null;
+            server.PingText = "Testing...";
+        }
+
+        try
+        {
+            var tasks = _fortniteServerPings.Select(async server =>
+            {
+                var ms = await MeasureAveragePingAsync(server.Hostname);
+                return (server, ms);
+            });
+            var results = await Task.WhenAll(tasks);
+
+            foreach (var (server, ms) in results)
+            {
+                server.PingMs = ms;
+                server.PingText = ms.HasValue ? $"{ms.Value:0}" : "Timeout";
+            }
+
+            var best = _fortniteServerPings.Where(s => s.PingMs.HasValue).OrderBy(s => s.PingMs!.Value).FirstOrDefault();
+            FortniteRegionStatusText = best is null
+                ? "Ping test complete. No datacenter endpoint responded."
+                : $"Ping test complete. Best measured region: {best.Code} ({best.PingMs:0} ms)";
+            StatusText = "Fortnite ping test complete";
+            _lastFortnitePingUtc = DateTime.UtcNow;
+
+            OutputTextBox.Text =
+                "Fortnite Datacenter Ping\n" +
+                "======================================================================\n" +
+                string.Join("\n", _fortniteServerPings.Select(s => $"{s.Region} ({s.Code}) -> {s.PingText} ms [{s.Hostname}]"));
+        }
+        finally
+        {
+            _isPingingFortniteServers = false;
+        }
+    }
+
+    private static async Task<double?> MeasureAveragePingAsync(string host)
+    {
+        var samples = new List<long>(3);
+        for (var i = 0; i < 3; i++)
+        {
+            try
+            {
+                using var ping = new Ping();
+                var reply = await ping.SendPingAsync(host, 1400);
+                if (reply.Status == IPStatus.Success)
+                {
+                    samples.Add(reply.RoundtripTime);
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+
+            await Task.Delay(60);
+        }
+
+        if (samples.Count == 0)
+        {
+            return null;
+        }
+
+        return samples.Average();
+    }
+
     private void SetDashboardView()
     {
         IsDashboardVisible = true;
@@ -1897,6 +2017,53 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         public required string Code { get; init; }
         public required string DisplayName { get; init; }
+    }
+
+    public sealed class FortniteServerPingItem : INotifyPropertyChanged
+    {
+        private string _pingText = "--";
+        private double? _pingMs;
+
+        public required string Region { get; init; }
+        public required string Code { get; init; }
+        public required string Hostname { get; init; }
+
+        public double? PingMs
+        {
+            get => _pingMs;
+            set
+            {
+                if (_pingMs == value)
+                {
+                    return;
+                }
+
+                _pingMs = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string PingText
+        {
+            get => _pingText;
+            set
+            {
+                if (_pingText == value)
+                {
+                    return;
+                }
+
+                _pingText = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        private void OnPropertyChanged([CallerMemberName] string? name = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
     }
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)

@@ -500,6 +500,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
@@ -508,10 +509,11 @@
                                 <ColumnDefinition Width="130"/>
                                 <ColumnDefinition Width="150"/>
                                 <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="110"/>
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Foreground="#F7FBFF" FontSize="20" FontWeight="SemiBold" Text="Fortnite"/>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Foreground="#A6BCD6" Margin="0,8,0,10" Text="Choose your preferred Fortnite server region for lower ping." TextWrapping="Wrap"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6" Foreground="#A6BCD6" Margin="0,8,0,10" Text="Choose your preferred Fortnite server region and test ping for every region endpoint." TextWrapping="Wrap"/>
                             <ComboBox Grid.Row="2" Grid.Column="1" x:Name="FortniteRegionComboBox"
                                       Margin="8,0,8,0"
                                       VerticalContentAlignment="Center"
@@ -520,7 +522,32 @@
                             <Button Grid.Row="2" Grid.Column="2" Margin="8,0,8,0" Style="{StaticResource ActionButtonStyle}" Content="Apply" Click="ApplyFortniteRegionButton_Click"/>
                             <Button Grid.Row="2" Grid.Column="3" Margin="8,0,8,0" Style="{StaticResource ActionButtonStyle}" Content="Suggest Closest" Click="SuggestFortniteRegionButton_Click"/>
                             <Button Grid.Row="2" Grid.Column="4" Margin="8,0,0,0" Style="{StaticResource ActionButtonStyle}" Content="Reload" Click="ReloadFortniteRegionButton_Click"/>
-                            <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="5" Foreground="#8FD2FF" Margin="0,12,0,0" Text="{Binding FortniteRegionStatusText}" TextWrapping="Wrap"/>
+                            <Button Grid.Row="2" Grid.Column="5" Margin="8,0,0,0" Style="{StaticResource ActionButtonStyle}" Content="Ping All" Click="PingFortniteServersButton_Click"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="6" Foreground="#8FD2FF" Margin="0,12,0,0" Text="{Binding FortniteRegionStatusText}" TextWrapping="Wrap"/>
+                            <DataGrid Grid.Row="4"
+                                      Grid.Column="0"
+                                      Grid.ColumnSpan="6"
+                                      Margin="0,10,0,0"
+                                      AutoGenerateColumns="False"
+                                      HeadersVisibility="Column"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      CanUserResizeRows="False"
+                                      IsReadOnly="True"
+                                      ItemsSource="{Binding FortniteServerPings}"
+                                      RowHeaderWidth="0"
+                                      GridLinesVisibility="Horizontal"
+                                      Background="#0A1322"
+                                      Foreground="#EAF4FF"
+                                      BorderBrush="#29476F"
+                                      BorderThickness="1">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Region" Binding="{Binding Region}" Width="*"/>
+                                    <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="80"/>
+                                    <DataGridTextColumn Header="Endpoint" Binding="{Binding Hostname}" Width="2*"/>
+                                    <DataGridTextColumn Header="Ping (ms)" Binding="{Binding PingText}" Width="110"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
                         </Grid>
                     </Border>
                 </Grid>
