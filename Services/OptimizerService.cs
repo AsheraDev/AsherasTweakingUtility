@@ -764,6 +764,16 @@ public sealed class OptimizerService
                         SetManagedState(tweakKey, enabled);
                         break;
 
+                    case "competitive_service_trim":
+                        sb.AppendLine(ToggleCompetitiveServiceTrim(enabled, hardcore: false));
+                        SetManagedState(tweakKey, enabled);
+                        break;
+
+                    case "hardcore_service_trim":
+                        sb.AppendLine(ToggleCompetitiveServiceTrim(enabled, hardcore: true));
+                        SetManagedState(tweakKey, enabled);
+                        break;
+
                     case "network_hardcore_mode":
                         sb.AppendLine(ToggleNetworkDriverOptimization(enabled));
                         if (enabled)
@@ -978,6 +988,8 @@ public sealed class OptimizerService
                 "sysmain_off" => GetServiceStartMode("SysMain") == 4,
                 "search_indexing_off" => GetServiceStartMode("WSearch") == 4,
                 "selective_background_services_off" => GetManagedState(tweakKey),
+                "competitive_service_trim" => GetManagedState(tweakKey),
+                "hardcore_service_trim" => GetManagedState(tweakKey),
                 "network_hardcore_mode" => GetManagedState(tweakKey),
                 "power_hardcore_mode" => IsPowerHardcoreModeEnabled(),
                 "timer_resolution_mode" => GetManagedState(tweakKey),
@@ -1434,6 +1446,87 @@ public sealed class OptimizerService
 
         sb.AppendLine(RunProcess("taskkill", disable ? "/IM OneDrive.exe /F" : "/IM OneDrive.exe"));
         sb.AppendLine(RunProcess("taskkill", disable ? "/IM PhoneExperienceHost.exe /F" : "/IM PhoneExperienceHost.exe"));
+        return sb.ToString();
+    }
+
+    private static string ToggleCompetitiveServiceTrim(bool enableTrim, bool hardcore)
+    {
+        if (!IsRunningAsAdmin())
+        {
+            return "Admin required.";
+        }
+
+        // Curated optional services only. Core services (RPC, DCOM, WMI, NLA, EventLog, etc.) are intentionally excluded.
+        var safeServices = new (string Service, int RestoreMode)[]
+        {
+            ("XblAuthManager", 3),
+            ("XblGameSave", 3),
+            ("XboxNetApiSvc", 3),
+            ("XboxGipSvc", 3),
+            ("Fax", 3),
+            ("MapsBroker", 3),
+            ("PhoneSvc", 3),
+            ("WMPNetworkSvc", 3),
+            ("WerSvc", 3)
+        };
+
+        var hardcoreExtras = new (string Service, int RestoreMode)[]
+        {
+            ("WpnService", 2),
+            ("WpnUserService", 3),
+            ("Spooler", 2),
+            ("SysMain", 2),
+            ("WSearch", 2)
+        };
+
+        var sb = new StringBuilder();
+        sb.AppendLine(enableTrim
+            ? $"Applying {(hardcore ? "hardcore" : "safe")} competitive service trim..."
+            : "Reverting competitive service trim to defaults...");
+
+        var services = safeServices.ToList();
+        if (hardcore)
+        {
+            services.AddRange(hardcoreExtras);
+        }
+
+        foreach (var entry in services)
+        {
+            try
+            {
+                if (enableTrim)
+                {
+                    SetServiceStartMode(entry.Service, 4);
+                    sb.AppendLine(RunProcess("sc.exe", $"stop {entry.Service}"));
+                }
+                else
+                {
+                    SetServiceStartMode(entry.Service, entry.RestoreMode);
+                    if (entry.RestoreMode == 2)
+                    {
+                        sb.AppendLine(RunProcess("sc.exe", $"start {entry.Service}"));
+                    }
+                }
+            }
+            catch
+            {
+                sb.AppendLine($"Skipped: {entry.Service} (not present or access denied).");
+            }
+        }
+
+        if (enableTrim)
+        {
+            sb.AppendLine(RunProcess("taskkill", "/IM OneDrive.exe /F"));
+            sb.AppendLine(RunProcess("taskkill", "/IM PhoneExperienceHost.exe /F"));
+            sb.AppendLine(RunProcess("taskkill", "/IM YourPhone.exe /F"));
+        }
+
+        sb.AppendLine("Done. Re-enable toggle to restore default startup modes.");
+        if (hardcore)
+        {
+            sb.AppendLine("Warning: Hardcore trim may disable notifications, search indexing, printing, or Xbox features until reverted.");
+        }
+
         return sb.ToString();
     }
 

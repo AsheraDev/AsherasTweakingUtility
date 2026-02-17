@@ -851,6 +851,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         var enabled = item.IsEnabled;
+        if (enabled && IsHighRiskTweak(item.Key))
+        {
+            var proceed = MessageBox.Show(
+                $"'{item.Title}' may disable optional Windows services and break some features until reverted.\n\nContinue?",
+                "High Risk Tweak",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (proceed != MessageBoxResult.Yes)
+            {
+                _suppressToggleEvents = true;
+                item.IsEnabled = false;
+                _suppressToggleEvents = false;
+                StatusText = $"{item.Title} cancelled";
+                return;
+            }
+        }
+
         await ExecuteActionAsync(
             $"{(enabled ? "Enabling" : "Disabling")} {item.Title}...",
             () => _optimizer.ApplyTweakToggleAsync(item.Key, enabled),
@@ -2461,6 +2478,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             "hpet_tune_off" or
             "network_hardcore_mode" or
             "power_hardcore_mode";
+    }
+
+    private static bool IsHighRiskTweak(string tweakKey)
+    {
+        return tweakKey is "hardcore_service_trim";
     }
 
     private static string? ExtractUpdaterPath(string text)
