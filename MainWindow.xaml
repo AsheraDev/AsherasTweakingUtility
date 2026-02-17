@@ -566,8 +566,46 @@
                                       GridLinesVisibility="Horizontal"
                                       Background="#0A1322"
                                       Foreground="#EAF4FF"
+                                      AlternatingRowBackground="#0E1D33"
                                       BorderBrush="#29476F"
                                       BorderThickness="1">
+                                <DataGrid.Resources>
+                                    <Style TargetType="DataGridRow">
+                                        <Setter Property="Background" Value="#0A1322"/>
+                                        <Setter Property="Foreground" Value="#EAF4FF"/>
+                                        <Setter Property="BorderBrush" Value="#223A5E"/>
+                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#162944"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="#234772"/>
+                                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                    <Style TargetType="DataGridCell">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Foreground" Value="#EAF4FF"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
+                                        <Setter Property="Padding" Value="8,4"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="#234772"/>
+                                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="Background" Value="#132742"/>
+                                        <Setter Property="Foreground" Value="#F7FBFF"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="BorderBrush" Value="#315782"/>
+                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                        <Setter Property="Padding" Value="8,6"/>
+                                    </Style>
+                                </DataGrid.Resources>
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Region" Binding="{Binding Region}" Width="*"/>
                                     <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="80"/>
