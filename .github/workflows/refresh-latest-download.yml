@@ -48,7 +48,7 @@ jobs:
 
           $tmpZip = Join-Path $env:TEMP "AsherasTweakingUtility-win-x64-latest.zip"
           if (Test-Path $tmpZip) { Remove-Item $tmpZip -Force }
-          Compress-Archive -Path .\dist\win-x64-Release\* -DestinationPath $tmpZip -Force
+          Compress-Archive -Path .\dist\win-x64-Release\AsherasTweakingUtility.exe -DestinationPath $tmpZip -Force
           Copy-Item -Force $tmpZip .\downloads\AsherasTweakingUtility-win-x64-latest.zip
 
       - name: Commit and push updated downloads
