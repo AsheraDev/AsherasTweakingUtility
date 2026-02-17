@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
@@ -13,6 +15,8 @@ public sealed class OptimizerService
 {
     private const string GameBarKey = @"Software\Microsoft\GameBar";
     private const string GameBarValueName = "AutoGameModeEnabled";
+    private const string LatestExeApiUrl = "https://api.github.com/repos/Daquan-sudem/AsherasTweakingUtility/contents/downloads/AsherasTweakingUtility-win-x64-latest.exe";
+    private static readonly HttpClient UpdateClient = CreateUpdateClient();
 
     private static readonly string StateFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
@@ -24,6 +28,96 @@ public sealed class OptimizerService
         "WinOptApp",
         "managed-tweaks.json");
 
+    public async Task<string> CheckForUpdateAsync()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Update Check");
+        sb.AppendLine(new string('=', 70));
+        sb.AppendLine($"Timestamp: {DateTime.Now}");
+        sb.AppendLine();
+
+        var remote = await GetLatestExecutableAsync();
+        if (remote is null || string.IsNullOrWhiteSpace(remote.download_url))
+        {
+            sb.AppendLine("Unable to read update metadata from GitHub.");
+            return sb.ToString();
+        }
+
+        sb.AppendLine($"Latest file: {remote.name}");
+        sb.AppendLine($"Remote size: {remote.size / 1024d / 1024d:0.00} MB");
+
+        var currentExe = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+        if (string.IsNullOrWhiteSpace(currentExe) || !File.Exists(currentExe))
+        {
+            sb.AppendLine("Local executable path not found. Run packaged EXE for direct version comparison.");
+            sb.AppendLine($"Download: {remote.download_url}");
+            return sb.ToString();
+        }
+
+        if (!currentExe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            sb.AppendLine("You are running from a development host. Packaged EXE comparison is unavailable.");
+            sb.AppendLine($"Download: {remote.download_url}");
+            return sb.ToString();
+        }
+
+        var localSize = new FileInfo(currentExe).Length;
+        sb.AppendLine($"Local file: {Path.GetFileName(currentExe)}");
+        sb.AppendLine($"Local size: {localSize / 1024d / 1024d:0.00} MB");
+
+        if (localSize == remote.size)
+        {
+            sb.AppendLine();
+            sb.AppendLine("Status: Up to date.");
+        }
+        else
+        {
+            sb.AppendLine();
+            sb.AppendLine("Status: Update available.");
+            sb.AppendLine($"Download: {remote.download_url}");
+        }
+
+        return sb.ToString();
+    }
+
+    public async Task<string> DownloadLatestUpdateAsync()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Download Update");
+        sb.AppendLine(new string('=', 70));
+        sb.AppendLine($"Timestamp: {DateTime.Now}");
+        sb.AppendLine();
+
+        var remote = await GetLatestExecutableAsync();
+        if (remote is null || string.IsNullOrWhiteSpace(remote.download_url))
+        {
+            sb.AppendLine("Unable to locate update binary on GitHub.");
+            return sb.ToString();
+        }
+
+        var downloadsDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Downloads");
+        Directory.CreateDirectory(downloadsDir);
+
+        var targetPath = Path.Combine(
+            downloadsDir,
+            $"AsherasTweakingUtility-update-{DateTime.Now:yyyyMMdd-HHmmss}.exe");
+
+        using var response = await UpdateClient.GetAsync(remote.download_url, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        await using (var source = await response.Content.ReadAsStreamAsync())
+        await using (var destination = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            await source.CopyToAsync(destination);
+        }
+
+        sb.AppendLine("Update downloaded successfully.");
+        sb.AppendLine($"Saved to: {targetPath}");
+        sb.AppendLine("Close this app and run the downloaded EXE to update.");
+        return sb.ToString();
+    }
     public Task<string> AnalyzeAsync()
     {
         return Task.Run(() =>
@@ -1077,7 +1171,38 @@ public sealed class OptimizerService
         var json = File.ReadAllText(StateFilePath);
         return JsonSerializer.Deserialize<OptimizationState>(json);
     }
-}
+    private static HttpClient CreateUpdateClient()
+    {
+        var client = new HttpClient();
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AsherasTweakingUtility", "1.0"));
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        return client;
+    }
 
+    private static async Task<GitHubContentItem?> GetLatestExecutableAsync()
+    {
+        try
+        {
+            using var response = await UpdateClient.GetAsync(LatestExeApiUrl);
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<GitHubContentItem>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private sealed class GitHubContentItem
+    {
+        public string? name { get; init; }
+        public long size { get; init; }
+        public string? download_url { get; init; }
+    }
+}
 
 

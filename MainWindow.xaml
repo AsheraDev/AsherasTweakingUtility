@@ -173,6 +173,8 @@
                 <Button Style="{StaticResource ActionButtonStyle}" Click="AnalyzeButton_Click" Content="Analyze"/>
                 <Button Style="{StaticResource ActionButtonStyle}" Click="ApplyProfileButton_Click" Content="Apply Gaming Profile"/>
                 <Button Style="{StaticResource ActionButtonStyle}" Click="RollbackButton_Click" Content="Rollback"/>
+                <Button Style="{StaticResource ActionButtonStyle}" Click="CheckUpdatesButton_Click" Content="Check Updates"/>
+                <Button Style="{StaticResource ActionButtonStyle}" Click="DownloadUpdateButton_Click" Content="Download Update"/>
                 <Border Background="#0E1A2D" BorderBrush="#2A4E7F" BorderThickness="1" CornerRadius="8" Padding="14,8" VerticalAlignment="Center">
                     <TextBlock Foreground="#F7FBFF" Text="{Binding StatusText}"/>
                 </Border>

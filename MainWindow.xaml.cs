@@ -573,6 +573,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         await ExecuteActionAsync("Rolling back...", _optimizer.RollbackAsync, "Rollback complete", "Rollback failed");
     }
 
+    private async void CheckUpdatesButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ExecuteActionAsync("Checking updates...", _optimizer.CheckForUpdateAsync, "Update check complete", "Update check failed");
+    }
+
+    private async void DownloadUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ExecuteActionAsync("Downloading update...", _optimizer.DownloadLatestUpdateAsync, "Update download complete", "Update download failed");
+    }
+
     private void HomeButton_Click(object sender, RoutedEventArgs e)
     {
         SetDashboardView();
