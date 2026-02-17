@@ -343,7 +343,7 @@
                             <TextBlock Foreground="#F7FBFF" FontSize="16" FontWeight="SemiBold" Text="CPU"/>
                             <TextBlock Foreground="#A6BCD6" Margin="0,4,0,0" Text="Processor usage (live)"/>
                             <TextBlock Foreground="#DCEBFF" Margin="0,12,0,0" Text="{Binding CpuSpeedText}"/>
-                            <TextBlock Foreground="#A6BCD6" Margin="0,4,0,0" Text="{Binding CpuSpeedMhz, StringFormat=Current: {0:0} MHz}"/>
+                            <TextBlock Foreground="#A6BCD6" Margin="0,4,0,0" Text="{Binding CpuSpeedDualText}"/>
                         </StackPanel>
                     </Grid>
                 </Border>

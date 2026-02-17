@@ -44,6 +44,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private double _cpuSpeedMhz;
     private string _cpuUsageText = "0%";
     private string _cpuSpeedText = "CPU speed: N/A";
+    private string _cpuSpeedDualText = "Current: N/A";
     private string _memoryUsageText = "0%";
     private string _memoryDetailsText = "0.0 / 0.0 GB";
     private string _diskUsageText = "0%";
@@ -296,6 +297,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
 
             _cpuSpeedText = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string CpuSpeedDualText
+    {
+        get => _cpuSpeedDualText;
+        private set
+        {
+            if (_cpuSpeedDualText == value)
+            {
+                return;
+            }
+
+            _cpuSpeedDualText = value;
             OnPropertyChanged();
         }
     }
@@ -1028,11 +1044,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             CpuSpeedMhz = Math.Min(CpuSpeedMaxMhz, speedMhz);
             CpuSpeedText = $"CPU speed: {speedMhz:0} MHz ({speedMhz / 1000.0:0.00} GHz)";
+            CpuSpeedDualText = $"Current: {speedMhz:0} MHz | {speedMhz / 1000.0:0.00} GHz";
         }
         else
         {
             CpuSpeedMhz = 0;
             CpuSpeedText = "CPU speed: unavailable";
+            CpuSpeedDualText = "Current: unavailable";
         }
 
         var memoryStatus = new MemoryStatusEx();
