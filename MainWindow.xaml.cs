@@ -7,6 +7,8 @@ using System.Management;
 using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -2191,13 +2193,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     lowerName.Contains("xbox") ||
                     lowerName.Contains("dualshock") ||
                     lowerName.Contains("dualsense");
+                var looksSystemOrNonInput =
+                    lowerName.Contains("host controller") ||
+                    lowerName.Contains("system controller") ||
+                    lowerName.Contains("aura led") ||
+                    lowerName.Contains("rgb controller");
                 var looksUsbHid =
                     string.Equals(pnpClass, "HIDClass", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(pnpClass, "USB", StringComparison.OrdinalIgnoreCase) ||
                     lowerId.StartsWith("usb\\", StringComparison.OrdinalIgnoreCase) ||
                     lowerId.StartsWith("hid\\", StringComparison.OrdinalIgnoreCase);
 
-                if (!looksUsbHid || !looksController)
+                if (!looksUsbHid || !looksController || looksSystemOrNonInput)
                 {
                     continue;
                 }
@@ -2273,16 +2280,35 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             // ignore profile write failures
         }
 
-        // Apply to HIDUSBF if installed. This keeps the app original and uses local system capabilities.
+        // Apply to HIDUSBF if installed. Write all matching device keys by VID/PID, then restart device.
         var applied = false;
+        var wroteKeys = 0;
+        var restartNote = string.Empty;
         try
         {
-            using var devKey = Registry.LocalMachine.CreateSubKey($@"SYSTEM\CurrentControlSet\Services\HIDUSBF\Parameters\Devices\{profileKey}", true);
-            if (devKey is not null)
+            var serviceName = GetHidUsbfServiceName();
+            if (!string.IsNullOrWhiteSpace(serviceName) && IsRunningAsAdministrator())
             {
-                devKey.SetValue("Rate", hz, RegistryValueKind.DWord);
-                devKey.SetValue("FilterOn", 1, RegistryValueKind.DWord);
-                applied = true;
+                foreach (var keyName in GetHidUsbfDeviceKeyCandidates(item.InstanceId))
+                {
+                    using var devKey = Registry.LocalMachine.CreateSubKey($@"SYSTEM\CurrentControlSet\Services\{serviceName}\Parameters\Devices\{keyName}", true);
+                    if (devKey is null)
+                    {
+                        continue;
+                    }
+
+                    devKey.SetValue("Rate", hz, RegistryValueKind.DWord);
+                    devKey.SetValue("FilterOn", 1, RegistryValueKind.DWord);
+                    wroteKeys++;
+                }
+
+                applied = wroteKeys > 0;
+                if (applied)
+                {
+                    restartNote = TryRestartPnpDevice(item.InstanceId)
+                        ? " Device restarted to apply settings."
+                        : " Replug controller (restart command was blocked/failed).";
+                }
             }
         }
         catch
@@ -2292,8 +2318,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         StatusText = "Controller polling profile updated";
         ControllerPollingStatusText = applied
-            ? $"Applied {hz} Hz to {item.DisplayName}. Replug/restart the device to finalize."
-            : $"Saved {hz} Hz profile for {item.DisplayName}. Install/enable HIDUSBF filter and re-apply.";
+            ? $"Applied {hz} Hz to {item.DisplayName} ({wroteKeys} driver key(s)).{restartNote}"
+            : $"Saved {hz} Hz profile for {item.DisplayName}. Run as admin and install/enable HIDUSBF filter, then re-apply.";
         OutputTextBox.Text =
             "Controller Polling\n" +
             "======================================================================\n" +
@@ -2301,8 +2327,98 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             $"Instance: {item.InstanceId}\n" +
             $"Polling target: {hz} Hz\n" +
             (applied
-                ? "Driver-level filter settings were written. Restart/replug controller."
-                : "Only profile saved. HIDUSBF filter driver keys were not writable (run as admin / install filter).");
+                ? $"Driver-level filter settings written to {wroteKeys} key(s).{restartNote}"
+                : "Only profile saved. HIDUSBF keys were not writable/found (run as admin, verify HIDUSBF install).");
+    }
+
+    private static string? GetHidUsbfServiceName()
+    {
+        using var hidusbf = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\HIDUSBF");
+        if (hidusbf is not null)
+        {
+            return "HIDUSBF";
+        }
+
+        using var hidUsbF = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\HidUsbF");
+        if (hidUsbF is not null)
+        {
+            return "HidUsbF";
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> GetHidUsbfDeviceKeyCandidates(string instanceId)
+    {
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return keys;
+        }
+
+        keys.Add(instanceId.Replace("\\", "#"));
+
+        var match = Regex.Match(instanceId, @"VID_([0-9A-F]{4}).*PID_([0-9A-F]{4})", RegexOptions.IgnoreCase);
+        if (match.Success)
+        {
+            var vid = match.Groups[1].Value.ToUpperInvariant();
+            var pid = match.Groups[2].Value.ToUpperInvariant();
+            var vidPidToken = $"VID_{vid}&PID_{pid}";
+
+            using var devicesRoot = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\HIDUSBF\Parameters\Devices");
+            if (devicesRoot is not null)
+            {
+                foreach (var subKeyName in devicesRoot.GetSubKeyNames())
+                {
+                    if (subKeyName.Contains(vidPidToken, StringComparison.OrdinalIgnoreCase))
+                    {
+                        keys.Add(subKeyName);
+                    }
+                }
+            }
+        }
+
+        return keys;
+    }
+
+    private static bool IsRunningAsAdministrator()
+    {
+        try
+        {
+            var identity = WindowsIdentity.GetCurrent();
+            var principal = new WindowsPrincipal(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryRestartPnpDevice(string instanceId)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "pnputil",
+                Arguments = $"/restart-device \"{instanceId}\"",
+                CreateNoWindow = true,
+                UseShellExecute = false
+            });
+
+            if (process is null)
+            {
+                return false;
+            }
+
+            process.WaitForExit(7000);
+            return process.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private void LoadFortniteRegionOptions()

@@ -10,6 +10,7 @@
     <Product>Ashera's Tweaking Utility</Product>
     <ApplicationTitle>Ashera's Tweaking Utility</ApplicationTitle>
     <ApplicationIcon>Assets\github-profile.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>
