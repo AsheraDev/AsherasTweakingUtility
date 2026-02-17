@@ -1653,18 +1653,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        _fortniteRegions.Add(new FortniteRegionItem { Code = "AUTO", DisplayName = "Auto (closest)" });
-        _fortniteRegions.Add(new FortniteRegionItem { Code = "NAE", DisplayName = "North America East" });
-        _fortniteRegions.Add(new FortniteRegionItem { Code = "NAC", DisplayName = "North America Central" });
-        _fortniteRegions.Add(new FortniteRegionItem { Code = "NAW", DisplayName = "North America West" });
-        _fortniteRegions.Add(new FortniteRegionItem { Code = "EU", DisplayName = "Europe" });
-        _fortniteRegions.Add(new FortniteRegionItem { Code = "BR", DisplayName = "Brazil" });
-        _fortniteRegions.Add(new FortniteRegionItem { Code = "ASIA", DisplayName = "Asia" });
-        _fortniteRegions.Add(new FortniteRegionItem { Code = "OCE", DisplayName = "Oceania" });
-        _fortniteRegions.Add(new FortniteRegionItem { Code = "ME", DisplayName = "Middle East" });
+        _fortniteRegions.Add(new FortniteRegionItem { Code = "AUTO", DisplayName = "Auto (closest)", Hostname = "__AUTO__" });
+        foreach (var target in FortniteServerTargets)
+        {
+            _fortniteRegions.Add(new FortniteRegionItem
+            {
+                Code = target.Code,
+                DisplayName = target.DisplayName,
+                Hostname = target.Hostname
+            });
+        }
 
         FortniteRegionComboBox.ItemsSource = _fortniteRegions;
-        FortniteRegionComboBox.SelectedValue = "AUTO";
+        FortniteRegionComboBox.SelectedValue = "__AUTO__";
     }
 
     private void LoadFortniteServerTargets()
@@ -1674,14 +1675,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "North America East", Code = "NAE", Hostname = "ec2.us-east-1.amazonaws.com", PingText = "--" });
-        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "North America Central", Code = "NAC", Hostname = "ec2.us-east-2.amazonaws.com", PingText = "--" });
-        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "North America West", Code = "NAW", Hostname = "ec2.us-west-2.amazonaws.com", PingText = "--" });
-        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "Europe", Code = "EU", Hostname = "ec2.eu-central-1.amazonaws.com", PingText = "--" });
-        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "Brazil", Code = "BR", Hostname = "ec2.sa-east-1.amazonaws.com", PingText = "--" });
-        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "Asia", Code = "ASIA", Hostname = "ec2.ap-northeast-1.amazonaws.com", PingText = "--" });
-        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "Oceania", Code = "OCE", Hostname = "ec2.ap-southeast-2.amazonaws.com", PingText = "--" });
-        _fortniteServerPings.Add(new FortniteServerPingItem { Region = "Middle East", Code = "ME", Hostname = "ec2.me-south-1.amazonaws.com", PingText = "--" });
+        foreach (var target in FortniteServerTargets)
+        {
+            _fortniteServerPings.Add(new FortniteServerPingItem
+            {
+                Region = target.Region,
+                Code = target.Code,
+                Hostname = target.Hostname,
+                PingText = "--"
+            });
+        }
     }
 
     private void ReloadFortniteRegionState()
@@ -1692,7 +1695,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!File.Exists(path))
         {
             FortniteRegionStatusText = "Fortnite config not found yet. Launch Fortnite once, then reload.";
-            FortniteRegionComboBox.SelectedValue = "AUTO";
+            FortniteRegionComboBox.SelectedValue = "__AUTO__";
             return;
         }
 
@@ -1700,13 +1703,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (string.IsNullOrWhiteSpace(current))
         {
             FortniteRegionStatusText = $"Config found at {path}. Region not set; game will use Auto.";
-            FortniteRegionComboBox.SelectedValue = "AUTO";
+            FortniteRegionComboBox.SelectedValue = "__AUTO__";
             return;
         }
 
         var normalized = current.Trim().ToUpperInvariant();
-        var known = _fortniteRegions.Any(r => r.Code == normalized);
-        FortniteRegionComboBox.SelectedValue = known ? normalized : "AUTO";
+        var selected = _fortniteRegions.FirstOrDefault(r => r.Code == normalized);
+        FortniteRegionComboBox.SelectedValue = selected?.Hostname ?? "__AUTO__";
+        var known = selected is not null;
         FortniteRegionStatusText = known
             ? $"Current Fortnite region: {normalized}"
             : $"Current Fortnite region in config: {normalized} (unknown code)";
@@ -1725,18 +1729,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             .Where(s => s.PingMs.HasValue)
             .OrderBy(s => s.PingMs!.Value)
             .FirstOrDefault();
-        var suggested = bestMeasured?.Code ?? SuggestClosestFortniteRegion();
-        FortniteRegionComboBox.SelectedValue = suggested;
+        var suggestedCode = bestMeasured?.Code ?? SuggestClosestFortniteRegion();
+        var selected = bestMeasured is not null
+            ? _fortniteRegions.FirstOrDefault(r => string.Equals(r.Hostname, bestMeasured.Hostname, StringComparison.OrdinalIgnoreCase))
+            : _fortniteRegions.FirstOrDefault(r => r.Code == suggestedCode);
+        FortniteRegionComboBox.SelectedValue = selected?.Hostname ?? "__AUTO__";
         FortniteRegionStatusText = bestMeasured is null
-            ? $"Suggested region based on local timezone: {suggested}"
-            : $"Suggested best measured region: {suggested} ({bestMeasured.PingMs:0} ms)";
+            ? $"Suggested region based on local timezone: {suggestedCode}"
+            : $"Suggested best measured server: {selected?.DisplayName ?? suggestedCode} ({bestMeasured.PingMs:0} ms)";
         StatusText = "Fortnite region suggested";
     }
 
     private void ApplyFortniteRegionButton_Click(object sender, RoutedEventArgs e)
     {
         LoadFortniteRegionOptions();
-        var code = (FortniteRegionComboBox.SelectedValue?.ToString() ?? "AUTO").Trim().ToUpperInvariant();
+        var selected = FortniteRegionComboBox.SelectedItem as FortniteRegionItem;
+        var code = (selected?.Code ?? "AUTO").Trim().ToUpperInvariant();
         if (!_fortniteRegions.Any(r => r.Code == code))
         {
             code = "AUTO";
@@ -1770,13 +1778,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         File.WriteAllLines(path, lines);
-        FortniteRegionStatusText = $"Applied Fortnite region: {code}. Restart Fortnite to take effect.";
+        FortniteRegionStatusText = selected is null
+            ? $"Applied Fortnite region: {code}. Restart Fortnite to take effect."
+            : $"Applied server selection: {selected.DisplayName} -> region {code}. Restart Fortnite to take effect.";
         StatusText = "Fortnite region updated";
         OutputTextBox.Text =
             "Fortnite Region\n" +
             "======================================================================\n" +
             $"Config: {path}\n" +
             $"PreferredRegion: {code}\n" +
+            (selected is null ? string.Empty : $"Selected Server Node: {selected.DisplayName} ({selected.Hostname})\n") +
             "Restart Fortnite to apply the new server region.";
     }
 
@@ -2017,6 +2028,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         public required string Code { get; init; }
         public required string DisplayName { get; init; }
+        public required string Hostname { get; init; }
     }
 
     public sealed class FortniteServerPingItem : INotifyPropertyChanged
@@ -2064,6 +2076,32 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
         }
+    }
+
+    private static readonly FortniteServerTarget[] FortniteServerTargets =
+    [
+        new FortniteServerTarget { Region = "Ashburn, US-East", Code = "NAE", Hostname = "ec2.us-east-1.amazonaws.com", DisplayName = "Ashburn (NA-East)" },
+        new FortniteServerTarget { Region = "Columbus, US-East", Code = "NAE", Hostname = "ec2.us-east-2.amazonaws.com", DisplayName = "Columbus (NA-East)" },
+        new FortniteServerTarget { Region = "Montreal, NA-Central", Code = "NAC", Hostname = "ec2.ca-central-1.amazonaws.com", DisplayName = "Montreal (NA-Central)" },
+        new FortniteServerTarget { Region = "Portland, US-West", Code = "NAW", Hostname = "ec2.us-west-2.amazonaws.com", DisplayName = "Portland (NA-West)" },
+        new FortniteServerTarget { Region = "Frankfurt, EU", Code = "EU", Hostname = "ec2.eu-central-1.amazonaws.com", DisplayName = "Frankfurt (Europe)" },
+        new FortniteServerTarget { Region = "London, EU", Code = "EU", Hostname = "ec2.eu-west-2.amazonaws.com", DisplayName = "London (Europe)" },
+        new FortniteServerTarget { Region = "Paris, EU", Code = "EU", Hostname = "ec2.eu-west-3.amazonaws.com", DisplayName = "Paris (Europe)" },
+        new FortniteServerTarget { Region = "Sao Paulo, BR", Code = "BR", Hostname = "ec2.sa-east-1.amazonaws.com", DisplayName = "Sao Paulo (Brazil)" },
+        new FortniteServerTarget { Region = "Tokyo, Asia", Code = "ASIA", Hostname = "ec2.ap-northeast-1.amazonaws.com", DisplayName = "Tokyo (Asia)" },
+        new FortniteServerTarget { Region = "Seoul, Asia", Code = "ASIA", Hostname = "ec2.ap-northeast-2.amazonaws.com", DisplayName = "Seoul (Asia)" },
+        new FortniteServerTarget { Region = "Singapore, Asia", Code = "ASIA", Hostname = "ec2.ap-southeast-1.amazonaws.com", DisplayName = "Singapore (Asia)" },
+        new FortniteServerTarget { Region = "Sydney, Oceania", Code = "OCE", Hostname = "ec2.ap-southeast-2.amazonaws.com", DisplayName = "Sydney (Oceania)" },
+        new FortniteServerTarget { Region = "Bahrain, Middle East", Code = "ME", Hostname = "ec2.me-south-1.amazonaws.com", DisplayName = "Bahrain (Middle East)" },
+        new FortniteServerTarget { Region = "Dubai, Middle East", Code = "ME", Hostname = "ec2.me-central-1.amazonaws.com", DisplayName = "Dubai (Middle East)" }
+    ];
+
+    private sealed class FortniteServerTarget
+    {
+        public required string Region { get; init; }
+        public required string Code { get; init; }
+        public required string Hostname { get; init; }
+        public required string DisplayName { get; init; }
     }
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)

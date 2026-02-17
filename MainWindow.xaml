@@ -539,13 +539,13 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Foreground="#F7FBFF" FontSize="20" FontWeight="SemiBold" Text="Fortnite"/>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6" Foreground="#A6BCD6" Margin="0,8,0,10" Text="Choose your preferred Fortnite server region and test ping for every region endpoint." TextWrapping="Wrap"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6" Foreground="#A6BCD6" Margin="0,8,0,10" Text="Choose a Fortnite server node (Ashburn, Frankfurt, etc.) and test ping for each endpoint." TextWrapping="Wrap"/>
                             <ComboBox Grid.Row="2" Grid.Column="1" x:Name="FortniteRegionComboBox"
                                       Style="{StaticResource DarkComboBoxStyle}"
                                       Margin="8,0,8,0"
                                       VerticalContentAlignment="Center"
                                       DisplayMemberPath="DisplayName"
-                                      SelectedValuePath="Code"/>
+                                      SelectedValuePath="Hostname"/>
                             <Button Grid.Row="2" Grid.Column="2" Margin="8,0,8,0" Style="{StaticResource ActionButtonStyle}" Content="Apply" Click="ApplyFortniteRegionButton_Click"/>
                             <Button Grid.Row="2" Grid.Column="3" Margin="8,0,8,0" Style="{StaticResource ActionButtonStyle}" Content="Suggest Closest" Click="SuggestFortniteRegionButton_Click"/>
                             <Button Grid.Row="2" Grid.Column="4" Margin="8,0,0,0" Style="{StaticResource ActionButtonStyle}" Content="Reload" Click="ReloadFortniteRegionButton_Click"/>
