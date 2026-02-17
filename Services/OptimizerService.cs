@@ -752,8 +752,9 @@ public sealed class OptimizerService
                         break;
 
                     case "nvidia_latency_profile":
-                        sb.AppendLine(ApplyNvidiaLatencyProfile(enabled));
-                        SetManagedState(tweakKey, enabled);
+                        var nvidiaResult = ApplyNvidiaLatencyProfile(enabled, out var nvidiaApplied);
+                        sb.AppendLine(nvidiaResult);
+                        SetManagedState(tweakKey, enabled && nvidiaApplied);
                         break;
 
                     case "wu_tournament_mode":
@@ -1431,22 +1432,121 @@ public sealed class OptimizerService
         }
     }
 
-    private static string ApplyNvidiaLatencyProfile(bool enable)
+    private static string ApplyNvidiaLatencyProfile(bool enable, out bool applied)
     {
+        applied = false;
         var sb = new StringBuilder();
-        if (File.Exists(Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\NVIDIA Corporation\NVSMI\nvidia-smi.exe")))
+        if (!enable)
         {
-            var exe = Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\NVIDIA Corporation\NVSMI\nvidia-smi.exe");
-            sb.AppendLine(RunProcess(exe, $"-pm {(enable ? 1 : 0)}"));
+            applied = true;
+            sb.AppendLine("NVIDIA latency profile marked OFF.");
+            return sb.ToString();
+        }
+
+        if (!HasNvidiaGpu())
+        {
+            sb.AppendLine("No NVIDIA GPU detected. Profile not applied.");
+            return sb.ToString();
+        }
+
+        var nvidiaSmiPath = FindNvidiaSmiPath();
+        if (string.IsNullOrWhiteSpace(nvidiaSmiPath))
+        {
+            sb.AppendLine("nvidia-smi not found. Cannot apply driver-side persistence mode.");
+            sb.AppendLine("Install/update NVIDIA driver package and try again.");
+            sb.AppendLine("STATUS: NVIDIA_PROFILE_NOT_APPLIED");
+            return sb.ToString();
+        }
+
+        var result = RunProcess(nvidiaSmiPath, "-pm 1");
+        sb.AppendLine($"nvidia-smi: {result}");
+        var smiSuccess = !result.StartsWith("ExitCode", StringComparison.OrdinalIgnoreCase);
+
+        var cplOpened = TryLaunchProcess("nvcplui.exe");
+        sb.AppendLine(cplOpened ? "Opened NVIDIA Control Panel." : "Could not open NVIDIA Control Panel automatically.");
+        sb.AppendLine("Open NVIDIA Control Panel and set: Low Latency Mode=On/Ultra, Power Management=Prefer Maximum Performance, Shader Cache=On, V-Sync=Off.");
+        applied = smiSuccess;
+        if (!applied)
+        {
+            sb.AppendLine("STATUS: NVIDIA_PROFILE_NOT_APPLIED");
+            sb.AppendLine("Tip: run app as Administrator and ensure NVIDIA driver tools are installed.");
         }
         else
         {
-            sb.AppendLine("nvidia-smi not found; applied guidance only.");
+            sb.AppendLine("STATUS: NVIDIA_PROFILE_APPLIED");
         }
 
-        _ = RunProcess("nvcplui.exe", "");
-        sb.AppendLine("Open NVIDIA Control Panel and set: Low Latency Mode=On/Ultra, Power Management=Prefer Maximum Performance, Shader Cache=On, V-Sync=Off.");
         return sb.ToString();
+    }
+
+    private static bool HasNvidiaGpu()
+    {
+        try
+        {
+            using var gpuSearcher = new System.Management.ManagementObjectSearcher("SELECT Name FROM Win32_VideoController");
+            foreach (var obj in gpuSearcher.Get().OfType<System.Management.ManagementObject>())
+            {
+                var name = obj["Name"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(name) && name.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            // ignored
+        }
+
+        return false;
+    }
+
+    private static string? FindNvidiaSmiPath()
+    {
+        var candidates = new[]
+        {
+            Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"),
+            Environment.ExpandEnvironmentVariables(@"%ProgramW6432%\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"),
+            "nvidia-smi.exe"
+        };
+
+        foreach (var path in candidates)
+        {
+            if (path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && File.Exists(path))
+            {
+                return path;
+            }
+
+            if (string.Equals(path, "nvidia-smi.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                var probe = RunProcess(path, "--help");
+                if (!probe.StartsWith("ExitCode", StringComparison.OrdinalIgnoreCase))
+                {
+                    return path;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryLaunchProcess(string fileName, string arguments = "")
+    {
+        try
+        {
+            using var proc = new Process();
+            proc.StartInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                UseShellExecute = true
+            };
+            return proc.Start();
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string ToggleSelectiveBackgroundServices(bool disable)
