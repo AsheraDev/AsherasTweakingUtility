@@ -541,6 +541,56 @@ public sealed class OptimizerService
                         sb.AppendLine("Nudges and prompts policy updated.");
                         break;
 
+                    case "low_latency_mode":
+                        SetRegistryDword(
+                            Registry.CurrentUser,
+                            @"System\GameConfigStore",
+                            "GameDVR_Enabled",
+                            enabled ? 0 : 1);
+                        SetRegistryDword(
+                            Registry.CurrentUser,
+                            @"SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR",
+                            "AppCaptureEnabled",
+                            enabled ? 0 : 1);
+
+                        if (!IsRunningAsAdmin())
+                        {
+                            sb.AppendLine("User-level latency settings applied.");
+                            sb.AppendLine("Admin required for full scheduler/network latency profile.");
+                        }
+                        else
+                        {
+                            SetRegistryDword(
+                                Registry.LocalMachine,
+                                @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile",
+                                "NetworkThrottlingIndex",
+                                enabled ? unchecked((int)0xFFFFFFFF) : 10);
+                            SetRegistryDword(
+                                Registry.LocalMachine,
+                                @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile",
+                                "SystemResponsiveness",
+                                enabled ? 0 : 20);
+                            SetRegistryString(
+                                Registry.LocalMachine,
+                                @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games",
+                                "Scheduling Category",
+                                enabled ? "High" : "Medium");
+                            SetRegistryString(
+                                Registry.LocalMachine,
+                                @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games",
+                                "Priority",
+                                enabled ? "6" : "2");
+                            SetRegistryString(
+                                Registry.LocalMachine,
+                                @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games",
+                                "SFIO Priority",
+                                enabled ? "High" : "Normal");
+                            sb.AppendLine("Full low-latency profile applied.");
+                        }
+
+                        sb.AppendLine("Restart game(s) to apply runtime-side effects.");
+                        break;
+
                     case "hibernation_off":
                         if (!IsRunningAsAdmin())
                         {
@@ -658,6 +708,11 @@ public sealed class OptimizerService
                 "amd_power_hold" => GetManagedState(tweakKey),
                 "amd_service_trim" => GetManagedState(tweakKey),
                 "nudge_blocker" => GetRegistryDword(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement", "ScoobeSystemSettingEnabled") == 0,
+                "low_latency_mode" =>
+                    GetRegistryDword(Registry.CurrentUser, @"System\GameConfigStore", "GameDVR_Enabled") == 0 &&
+                    GetRegistryDword(Registry.CurrentUser, @"SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR", "AppCaptureEnabled") == 0 &&
+                    GetRegistryDword(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile", "SystemResponsiveness") == 0 &&
+                    GetRegistryDword(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile", "NetworkThrottlingIndex") == unchecked((int)0xFFFFFFFF),
                 "hibernation_off" => IsHibernateDisabled(),
                 "gamebar_overlay_off" => GetRegistryDword(Registry.CurrentUser, @"SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR", "AppCaptureEnabled") == 0,
                 "widgets_feed_off" => GetRegistryDword(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarDa") == 0,

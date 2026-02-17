@@ -1014,6 +1014,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         });
         _tweakCards.Add(new TweakCardItem
         {
+            Key = "low_latency_mode",
+            Title = "Low Latency Mode",
+            Description = "Applies scheduler, network throttling, and DVR-related settings to reduce system-side input and frame delay.",
+            WarningText = "1 WARNING"
+        });
+        _tweakCards.Add(new TweakCardItem
+        {
             Key = "hibernation_off",
             Title = "Hibernation Off",
             Description = "Disables hibernation to reduce disk footprint and hiberfile writes."
