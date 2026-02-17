@@ -677,8 +677,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             var result = await _optimizer.DownloadLatestUpdateAsync();
             OutputTextBox.Text = result;
+            var status = ExtractStatusTag(result);
 
-            if (!result.Contains("STATUS: READY_FOR_RESTART", StringComparison.Ordinal))
+            if (status == "UP_TO_DATE")
+            {
+                StatusText = "Already up to date";
+                MessageBox.Show("You are already on the latest version.", "Install Update", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (status == "UPDATE_CHECK_FAILED" || status == "UPDATE_DOWNLOAD_FAILED")
+            {
+                StatusText = "Update install failed";
+                MessageBox.Show("Update download failed. See log output for details.", "Install Update", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (status != "READY_FOR_RESTART")
             {
                 StatusText = "Update download complete";
                 return;
@@ -717,6 +732,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             OutputTextBox.Text = $"Update download failed:\n{ex.Message}";
             StatusText = "Update download failed";
         }
+    }
+
+    private void RestartAppButton_Click(object sender, RoutedEventArgs e)
+    {
+        RestartApplication();
     }
 
     private void HomeButton_Click(object sender, RoutedEventArgs e)
@@ -2547,6 +2567,30 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         return null;
+    }
+
+    private static void RestartApplication()
+    {
+        try
+        {
+            var currentExe = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+            if (string.IsNullOrWhiteSpace(currentExe) || !File.Exists(currentExe) || !currentExe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show("Restart from app is available only when running the packaged EXE.", "Restart App", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = currentExe,
+                UseShellExecute = true
+            });
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Restart failed: {ex.Message}", "Restart App", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private static double ClampPercent(double value)

@@ -113,6 +113,7 @@ public sealed class OptimizerService
         if (remote is null || string.IsNullOrWhiteSpace(remote.download_url))
         {
             sb.AppendLine("Unable to locate update binary on GitHub.");
+            sb.AppendLine("STATUS: UPDATE_CHECK_FAILED");
             return sb.ToString();
         }
 
@@ -120,42 +121,67 @@ public sealed class OptimizerService
         if (string.IsNullOrWhiteSpace(currentExe) || !currentExe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
         {
             sb.AppendLine("In-place update requires running from the packaged EXE.");
+            sb.AppendLine("STATUS: UPDATE_UNKNOWN");
             return sb.ToString();
         }
 
-        var appDir = Path.GetDirectoryName(currentExe)!;
-        var stagingPath = Path.Combine(appDir, $"AsherasTweakingUtility-update-{DateTime.Now:yyyyMMdd-HHmmss}.new");
-        var updaterPath = Path.Combine(Path.GetTempPath(), $"AsherasTU-updater-{DateTime.Now:yyyyMMdd-HHmmss}.cmd");
-
-        using var response = await UpdateClient.GetAsync(remote.download_url, HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
-
-        await using (var source = await response.Content.ReadAsStreamAsync())
-        await using (var destination = new FileStream(stagingPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        try
         {
-            await source.CopyToAsync(destination);
+            var localSize = new FileInfo(currentExe).Length;
+            if (localSize == remote.size)
+            {
+                sb.AppendLine("Already on latest build.");
+                sb.AppendLine("STATUS: UP_TO_DATE");
+                return sb.ToString();
+            }
+        }
+        catch
+        {
+            // ignored
         }
 
-        var script = string.Join(Environment.NewLine,
-            "@echo off",
-            "setlocal",
-            "timeout /t 2 /nobreak >nul",
-            ":retry",
-            $"copy /y \"{stagingPath}\" \"{currentExe}\" >nul 2>&1",
-            "if errorlevel 1 (",
-            "  timeout /t 1 /nobreak >nul",
-            "  goto retry",
-            ")",
-            $"start \"\" \"{currentExe}\"",
-            $"del /f /q \"{stagingPath}\" >nul 2>&1",
-            "del /f /q \"%~f0\" >nul 2>&1");
-        File.WriteAllText(updaterPath, script, Encoding.ASCII);
+        try
+        {
+            var appDir = Path.GetDirectoryName(currentExe)!;
+            var stagingPath = Path.Combine(appDir, $"AsherasTweakingUtility-update-{DateTime.Now:yyyyMMdd-HHmmss}.new");
+            var updaterPath = Path.Combine(Path.GetTempPath(), $"AsherasTU-updater-{DateTime.Now:yyyyMMdd-HHmmss}.cmd");
 
-        sb.AppendLine("In-place update prepared.");
-        sb.AppendLine($"Staged binary: {stagingPath}");
-        sb.AppendLine($"Updater script: {updaterPath}");
-        sb.AppendLine("STATUS: READY_FOR_RESTART");
-        return sb.ToString();
+            using var response = await UpdateClient.GetAsync(remote.download_url, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            await using (var source = await response.Content.ReadAsStreamAsync())
+            await using (var destination = new FileStream(stagingPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await source.CopyToAsync(destination);
+            }
+
+            var script = string.Join(Environment.NewLine,
+                "@echo off",
+                "setlocal",
+                "timeout /t 2 /nobreak >nul",
+                ":retry",
+                $"copy /y \"{stagingPath}\" \"{currentExe}\" >nul 2>&1",
+                "if errorlevel 1 (",
+                "  timeout /t 1 /nobreak >nul",
+                "  goto retry",
+                ")",
+                $"start \"\" \"{currentExe}\"",
+                $"del /f /q \"{stagingPath}\" >nul 2>&1",
+                "del /f /q \"%~f0\" >nul 2>&1");
+            File.WriteAllText(updaterPath, script, Encoding.ASCII);
+
+            sb.AppendLine("In-place update prepared.");
+            sb.AppendLine($"Staged binary: {stagingPath}");
+            sb.AppendLine($"Updater script: {updaterPath}");
+            sb.AppendLine("STATUS: READY_FOR_RESTART");
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            sb.AppendLine($"Update download/install prep failed: {ex.Message}");
+            sb.AppendLine("STATUS: UPDATE_DOWNLOAD_FAILED");
+            return sb.ToString();
+        }
     }
     public Task<string> AnalyzeAsync()
     {
