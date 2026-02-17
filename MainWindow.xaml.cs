@@ -1739,7 +1739,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         _fortniteRegions.Add(new FortniteRegionItem { Code = "AUTO", DisplayName = "Auto (closest)", Hostname = "__AUTO__" });
-        foreach (var target in FortniteServerTargets)
+        foreach (var target in GetFortniteServerTargets())
         {
             _fortniteRegions.Add(new FortniteRegionItem
             {
@@ -1760,7 +1760,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        foreach (var target in FortniteServerTargets)
+        foreach (var target in GetFortniteServerTargets())
         {
             _fortniteServerPings.Add(new FortniteServerPingItem
             {
@@ -2191,23 +2191,90 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private static readonly FortniteServerTarget[] FortniteServerTargets =
+    private static readonly FortniteServerTarget[] DefaultFortniteServerTargets =
     [
         new FortniteServerTarget { Region = "Ashburn, US-East", Code = "NAE", Hostname = "ec2.us-east-1.amazonaws.com", DisplayName = "Ashburn (NA-East)" },
         new FortniteServerTarget { Region = "Columbus, US-East", Code = "NAE", Hostname = "ec2.us-east-2.amazonaws.com", DisplayName = "Columbus (NA-East)" },
         new FortniteServerTarget { Region = "Montreal, NA-Central", Code = "NAC", Hostname = "ec2.ca-central-1.amazonaws.com", DisplayName = "Montreal (NA-Central)" },
+        new FortniteServerTarget { Region = "N. Virginia, US-East", Code = "NAE", Hostname = "ec2.us-east-1.amazonaws.com", DisplayName = "Virginia (NA-East)" },
+        new FortniteServerTarget { Region = "Northern California, US-West", Code = "NAW", Hostname = "ec2.us-west-1.amazonaws.com", DisplayName = "N. California (NA-West)" },
         new FortniteServerTarget { Region = "Portland, US-West", Code = "NAW", Hostname = "ec2.us-west-2.amazonaws.com", DisplayName = "Portland (NA-West)" },
+        new FortniteServerTarget { Region = "Dublin, EU", Code = "EU", Hostname = "ec2.eu-west-1.amazonaws.com", DisplayName = "Dublin (Europe)" },
         new FortniteServerTarget { Region = "Frankfurt, EU", Code = "EU", Hostname = "ec2.eu-central-1.amazonaws.com", DisplayName = "Frankfurt (Europe)" },
         new FortniteServerTarget { Region = "London, EU", Code = "EU", Hostname = "ec2.eu-west-2.amazonaws.com", DisplayName = "London (Europe)" },
         new FortniteServerTarget { Region = "Paris, EU", Code = "EU", Hostname = "ec2.eu-west-3.amazonaws.com", DisplayName = "Paris (Europe)" },
+        new FortniteServerTarget { Region = "Stockholm, EU", Code = "EU", Hostname = "ec2.eu-north-1.amazonaws.com", DisplayName = "Stockholm (Europe)" },
+        new FortniteServerTarget { Region = "Milan, EU", Code = "EU", Hostname = "ec2.eu-south-1.amazonaws.com", DisplayName = "Milan (Europe)" },
+        new FortniteServerTarget { Region = "Madrid, EU", Code = "EU", Hostname = "ec2.eu-south-2.amazonaws.com", DisplayName = "Madrid (Europe)" },
         new FortniteServerTarget { Region = "Sao Paulo, BR", Code = "BR", Hostname = "ec2.sa-east-1.amazonaws.com", DisplayName = "Sao Paulo (Brazil)" },
         new FortniteServerTarget { Region = "Tokyo, Asia", Code = "ASIA", Hostname = "ec2.ap-northeast-1.amazonaws.com", DisplayName = "Tokyo (Asia)" },
         new FortniteServerTarget { Region = "Seoul, Asia", Code = "ASIA", Hostname = "ec2.ap-northeast-2.amazonaws.com", DisplayName = "Seoul (Asia)" },
+        new FortniteServerTarget { Region = "Osaka, Asia", Code = "ASIA", Hostname = "ec2.ap-northeast-3.amazonaws.com", DisplayName = "Osaka (Asia)" },
+        new FortniteServerTarget { Region = "Mumbai, Asia", Code = "ASIA", Hostname = "ec2.ap-south-1.amazonaws.com", DisplayName = "Mumbai (Asia)" },
+        new FortniteServerTarget { Region = "Hyderabad, Asia", Code = "ASIA", Hostname = "ec2.ap-south-2.amazonaws.com", DisplayName = "Hyderabad (Asia)" },
         new FortniteServerTarget { Region = "Singapore, Asia", Code = "ASIA", Hostname = "ec2.ap-southeast-1.amazonaws.com", DisplayName = "Singapore (Asia)" },
+        new FortniteServerTarget { Region = "Jakarta, Asia", Code = "ASIA", Hostname = "ec2.ap-southeast-3.amazonaws.com", DisplayName = "Jakarta (Asia)" },
+        new FortniteServerTarget { Region = "Hong Kong, Asia", Code = "ASIA", Hostname = "ec2.ap-east-1.amazonaws.com", DisplayName = "Hong Kong (Asia)" },
         new FortniteServerTarget { Region = "Sydney, Oceania", Code = "OCE", Hostname = "ec2.ap-southeast-2.amazonaws.com", DisplayName = "Sydney (Oceania)" },
+        new FortniteServerTarget { Region = "Melbourne, Oceania", Code = "OCE", Hostname = "ec2.ap-southeast-4.amazonaws.com", DisplayName = "Melbourne (Oceania)" },
+        new FortniteServerTarget { Region = "Auckland, Oceania", Code = "OCE", Hostname = "ec2.ap-southeast-6.amazonaws.com", DisplayName = "Auckland (Oceania)" },
         new FortniteServerTarget { Region = "Bahrain, Middle East", Code = "ME", Hostname = "ec2.me-south-1.amazonaws.com", DisplayName = "Bahrain (Middle East)" },
-        new FortniteServerTarget { Region = "Dubai, Middle East", Code = "ME", Hostname = "ec2.me-central-1.amazonaws.com", DisplayName = "Dubai (Middle East)" }
+        new FortniteServerTarget { Region = "Dubai, Middle East", Code = "ME", Hostname = "ec2.me-central-1.amazonaws.com", DisplayName = "Dubai (Middle East)" },
+        new FortniteServerTarget { Region = "Cape Town, Africa", Code = "EU", Hostname = "ec2.af-south-1.amazonaws.com", DisplayName = "Cape Town (Africa)" }
     ];
+
+    private static IEnumerable<FortniteServerTarget> GetFortniteServerTargets()
+    {
+        var all = new List<FortniteServerTarget>(DefaultFortniteServerTargets);
+        all.AddRange(LoadCustomFortniteServerTargets());
+        return all
+            .GroupBy(x => x.Hostname, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First());
+    }
+
+    private static IEnumerable<FortniteServerTarget> LoadCustomFortniteServerTargets()
+    {
+        var path = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "AsherasTweakingUtility",
+            "fortnite-servers.csv");
+        if (!File.Exists(path))
+        {
+            return [];
+        }
+
+        var rows = new List<FortniteServerTarget>();
+        foreach (var line in File.ReadLines(path))
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var parts = trimmed.Split(',', StringSplitOptions.TrimEntries);
+            if (parts.Length < 4)
+            {
+                continue;
+            }
+
+            var code = parts[1].ToUpperInvariant();
+            if (code is not ("NAE" or "NAC" or "NAW" or "EU" or "BR" or "ASIA" or "OCE" or "ME"))
+            {
+                continue;
+            }
+
+            rows.Add(new FortniteServerTarget
+            {
+                Region = parts[0],
+                Code = code,
+                Hostname = parts[2],
+                DisplayName = parts[3]
+            });
+        }
+
+        return rows;
+    }
 
     private sealed class FortniteServerTarget
     {
