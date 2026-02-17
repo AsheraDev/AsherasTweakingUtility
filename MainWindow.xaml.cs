@@ -1330,6 +1330,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         });
         _tweakCards.Add(new TweakCardItem
         {
+            Key = "competitive_service_trim",
+            Title = "Competitive Service Trim",
+            Description = "Disables a safer optional background-service set for match sessions and restores defaults when disabled.",
+            WarningText = "1 WARNING"
+        });
+        _tweakCards.Add(new TweakCardItem
+        {
+            Key = "hardcore_service_trim",
+            Title = "Hardcore Service Trim",
+            Description = "Aggressive optional-service trim for competitive play. May break Store/Xbox/cloud/phone features until reverted.",
+            WarningText = "HIGH RISK"
+        });
+        _tweakCards.Add(new TweakCardItem
+        {
             Key = "network_hardcore_mode",
             Title = "Network Hardcore Mode",
             Description = "Applies NIC performance settings, resets stack, flushes DNS, and renews adapter IP.",
@@ -1413,6 +1427,61 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Description = "Disables legacy SMB1 protocol support for stronger security.",
             WarningText = "1 WARNING"
         });
+
+        foreach (var card in _tweakCards)
+        {
+            card.HoverHelpText = GetSimpleTweakHelp(card.Key, card.Title);
+        }
+    }
+
+    private static string GetSimpleTweakHelp(string key, string title)
+    {
+        return key switch
+        {
+            "sensor_suite_off" => "Turns off location/sensor services. Can reduce tiny background CPU usage.",
+            "sticky_keys_guard" => "Prevents Sticky Keys popups while gaming.",
+            "telemetry_zero" => "Reduces Windows diagnostic data collection. Mostly background/privacy change.",
+            "voice_activation_off" => "Turns off always-listening voice activation features.",
+            "webdav_scan_off" => "Stops WebDAV background checks you probably do not need for gaming.",
+            "whql_only" => "Prefers safer certified drivers over optional driver auto-changes.",
+            "wu_control" => "Controls auto Windows Update behavior. Can stop updates during play.",
+            "wu_core_off" => "Disables core update services. Risk: updates may fail until reverted.",
+            "amd_chill_off" => "Disables AMD Chill-like power saving so FPS timing stays steadier.",
+            "amd_power_hold" => "Keeps AMD GPU from downclocking too aggressively.",
+            "amd_service_trim" => "Disables non-essential AMD background services.",
+            "cloud_sync_off" => "Stops Windows cloud sync in background.",
+            "do_solo_mode" => "Limits Delivery Optimization peer traffic in background.",
+            "process_count_reduction" => "Changes service host splitting to reduce process count.",
+            "nudge_blocker" => "Reduces popups, tips, and engagement prompts.",
+            "low_latency_mode" => "Applies game scheduling and DVR/network settings for lower input delay.",
+            "network_driver_optimize" => "Applies NIC settings focused on stable low-latency gameplay.",
+            "ultimate_power_plan" => "Enables high-performance power settings for consistent clocks.",
+            "memory_integrity_off" => "Turns off Memory Integrity for performance. Security tradeoff.",
+            "gpu_msi_mode" => "Uses MSI interrupts for GPU. Advanced; may help latency.",
+            "hpet_tune_off" => "Tweaks platform clock behavior. Can help or hurt depending on system.",
+            "startup_cleanup_assist" => "Opens startup controls so you can disable extra startup apps.",
+            "nvidia_latency_profile" => "Applies Nvidia low-latency oriented settings/guidance.",
+            "wu_tournament_mode" => "Temporarily stops Windows Update service during matches.",
+            "sysmain_off" => "Disables SysMain to reduce some disk spikes on certain PCs.",
+            "search_indexing_off" => "Disables search indexing background activity.",
+            "selective_background_services_off" => "Stops optional services like Xbox/OneDrive/Phone Link.",
+            "competitive_service_trim" => "Safe competitive trim: disables optional services only; easy to revert.",
+            "hardcore_service_trim" => "Aggressive trim: more optional services disabled; can break features until reverted.",
+            "network_hardcore_mode" => "Runs deeper network reset + gaming-focused NIC settings.",
+            "power_hardcore_mode" => "Hardcore power settings for max consistency and low-latency behavior.",
+            "timer_resolution_mode" => "Forces high timer resolution while enabled; can raise power use.",
+            "background_apps_off" => "Stops UWP background apps from running behind games.",
+            "hibernation_off" => "Disables hibernation and removes hiberfil usage.",
+            "gamebar_overlay_off" => "Turns off Game Bar and DVR capture overlays.",
+            "widgets_feed_off" => "Disables taskbar widgets/news feed.",
+            "ads_id_off" => "Disables Windows ad ID personalization.",
+            "search_highlights_off" => "Removes search highlights/web suggestions noise.",
+            "remote_assistance_off" => "Disables Remote Assistance access.",
+            "fast_startup_off" => "Disables Fast Startup for cleaner shutdown/boot states.",
+            "print_spooler_off" => "Disables printer service. Do this only if you do not print.",
+            "smb1_off" => "Disables outdated SMB1 protocol for security and less legacy overhead.",
+            _ => $"Simple: {title} changes a Windows setting to reduce background activity during gaming."
+        };
     }
 
     private async Task RefreshTweakStatesAsync(bool showPopup)

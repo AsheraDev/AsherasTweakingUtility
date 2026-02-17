@@ -11,6 +11,7 @@ public sealed class TweakCardItem : INotifyPropertyChanged
     public required string Key { get; init; }
     public required string Title { get; init; }
     public required string Description { get; init; }
+    public string HoverHelpText { get; set; } = string.Empty;
     public string? WarningText { get; init; }
 
     public bool IsEnabled
