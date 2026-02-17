@@ -134,6 +134,31 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="DarkComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Background" Value="#0D1728"/>
+            <Setter Property="Foreground" Value="#EAF4FF"/>
+            <Setter Property="BorderBrush" Value="#315782"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Foreground" Value="#EAF4FF"/>
+                        <Setter Property="Background" Value="#0D1728"/>
+                        <Setter Property="Padding" Value="6,4"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter Property="Background" Value="#1B3558"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#234772"/>
+                                <Setter Property="Foreground" Value="#F7FBFF"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -395,12 +420,13 @@
                         <TextBlock Grid.Row="1" Grid.Column="0" Foreground="#A6BCD6" Margin="0,10,8,0" Text="{Binding ControllerPollingStatusText}" TextWrapping="Wrap"/>
 
                         <ComboBox Grid.Row="0" Grid.Column="1" Grid.RowSpan="2" x:Name="ControllerDeviceComboBox"
+                                  Style="{StaticResource DarkComboBoxStyle}"
                                   Margin="8,0,8,0"
                                   VerticalContentAlignment="Center"
                                   DisplayMemberPath="DisplayName"
                                   SelectedValuePath="InstanceId"
                                   SelectionChanged="ControllerDeviceComboBox_SelectionChanged"/>
-                        <ComboBox Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" x:Name="PollingRateComboBox" Margin="8,0,8,0" VerticalContentAlignment="Center"/>
+                        <ComboBox Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" x:Name="PollingRateComboBox" Style="{StaticResource DarkComboBoxStyle}" Margin="8,0,8,0" VerticalContentAlignment="Center"/>
                         <Button Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Margin="8,0,8,0" Style="{StaticResource ActionButtonStyle}" Content="Apply Rate" Click="ApplyControllerPollingButton_Click"/>
                         <Button Grid.Row="0" Grid.Column="4" Grid.RowSpan="2" Margin="8,0,0,0" Style="{StaticResource ActionButtonStyle}" Content="Refresh" Click="RefreshControllerDevicesButton_Click"/>
                     </Grid>
@@ -515,6 +541,7 @@
                             <TextBlock Grid.Row="0" Grid.Column="0" Foreground="#F7FBFF" FontSize="20" FontWeight="SemiBold" Text="Fortnite"/>
                             <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6" Foreground="#A6BCD6" Margin="0,8,0,10" Text="Choose your preferred Fortnite server region and test ping for every region endpoint." TextWrapping="Wrap"/>
                             <ComboBox Grid.Row="2" Grid.Column="1" x:Name="FortniteRegionComboBox"
+                                      Style="{StaticResource DarkComboBoxStyle}"
                                       Margin="8,0,8,0"
                                       VerticalContentAlignment="Center"
                                       DisplayMemberPath="DisplayName"
