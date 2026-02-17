@@ -28,6 +28,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly PerformanceCounter? _cpuCounter;
     private readonly PerformanceCounter? _cpuFrequencyCounter;
     private readonly PerformanceCounter? _cpuFrequencyPercentCounter;
+    private readonly PerformanceCounter? _cpuProcessorPerformanceCounter;
     private readonly List<PerformanceCounter> _cpuPerCoreFrequencyCounters = [];
     private readonly string _systemDriveRoot;
     private readonly double _cpuMaxMhz;
@@ -127,6 +128,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch
         {
             _cpuFrequencyPercentCounter = null;
+        }
+
+        try
+        {
+            _cpuProcessorPerformanceCounter = new PerformanceCounter("Processor Information", "% Processor Performance", "_Total");
+            _ = _cpuProcessorPerformanceCounter.NextValue();
+        }
+        catch
+        {
+            _cpuProcessorPerformanceCounter = null;
         }
 
         try
@@ -1090,6 +1101,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private double ReadCpuSpeedMhz()
     {
+        // Task Manager style: performance counters first (dynamic/turbo-aware), then fallbacks.
+        var tmLike = ReadCpuSpeedTaskManagerLikeMhz();
+        if (tmLike > 0)
+        {
+            return tmLike;
+        }
+
         if (TryReadCoreTempSharedMemory())
         {
             if (_coreTempCpuSpeedMhz > 0)
@@ -1103,34 +1121,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         try
         {
-            var perCore = ReadPerCoreFrequencyAverageMhz();
-            if (perCore > 0)
-            {
-                return perCore;
-            }
-
             var powerApiSpeed = ReadCpuSpeedMhzFromPowerApi();
             if (powerApiSpeed > 0)
             {
                 return powerApiSpeed;
-            }
-
-            if (_cpuFrequencyPercentCounter is not null && _cpuMaxMhz > 0)
-            {
-                var percentOfMax = _cpuFrequencyPercentCounter.NextValue();
-                if (percentOfMax > 0)
-                {
-                    return (_cpuMaxMhz * percentOfMax) / 100.0;
-                }
-            }
-
-            if (_cpuFrequencyCounter is not null)
-            {
-                var direct = _cpuFrequencyCounter.NextValue();
-                if (direct > 0)
-                {
-                    return direct;
-                }
             }
 
             // Last resort: many systems report a static base clock here.
@@ -1146,6 +1140,62 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch
         {
             // Ignore and fallback below.
+        }
+
+        return 0;
+    }
+
+    private double ReadCpuSpeedTaskManagerLikeMhz()
+    {
+        try
+        {
+            if (_cpuMaxMhz > 0)
+            {
+                if (_cpuProcessorPerformanceCounter is not null)
+                {
+                    var perf = _cpuProcessorPerformanceCounter.NextValue();
+                    if (perf > 0)
+                    {
+                        var mhz = (_cpuMaxMhz * perf) / 100.0;
+                        if (mhz > 0)
+                        {
+                            return mhz;
+                        }
+                    }
+                }
+
+                if (_cpuFrequencyPercentCounter is not null)
+                {
+                    var percent = _cpuFrequencyPercentCounter.NextValue();
+                    if (percent > 0)
+                    {
+                        var mhz = (_cpuMaxMhz * percent) / 100.0;
+                        if (mhz > 0)
+                        {
+                            return mhz;
+                        }
+                    }
+                }
+            }
+
+            if (_cpuFrequencyCounter is not null)
+            {
+                var direct = _cpuFrequencyCounter.NextValue();
+                if (direct > 0)
+                {
+                    return direct;
+                }
+            }
+
+            var perCore = ReadPerCoreFrequencyAverageMhz();
+            if (perCore > 0)
+            {
+                return perCore;
+            }
+        }
+        catch
+        {
+            // ignored
         }
 
         return 0;
@@ -3188,6 +3238,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _cpuCounter?.Dispose();
         _cpuFrequencyCounter?.Dispose();
         _cpuFrequencyPercentCounter?.Dispose();
+        _cpuProcessorPerformanceCounter?.Dispose();
         foreach (var c in _cpuPerCoreFrequencyCounters)
         {
             c.Dispose();
