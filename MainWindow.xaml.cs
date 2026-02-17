@@ -28,6 +28,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly PerformanceCounter? _cpuCounter;
     private readonly PerformanceCounter? _cpuFrequencyCounter;
     private readonly PerformanceCounter? _cpuFrequencyPercentCounter;
+    private readonly List<PerformanceCounter> _cpuPerCoreFrequencyCounters = [];
     private readonly string _systemDriveRoot;
     private readonly double _cpuMaxMhz;
     private readonly string _cpuName;
@@ -125,6 +126,32 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch
         {
             _cpuFrequencyPercentCounter = null;
+        }
+
+        try
+        {
+            var cat = new PerformanceCounterCategory("Processor Information");
+            foreach (var instance in cat.GetInstanceNames())
+            {
+                if (string.Equals(instance, "_Total", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // Typical instances are like "0,0", "1,0", etc.
+                if (!char.IsDigit(instance[0]))
+                {
+                    continue;
+                }
+
+                var c = new PerformanceCounter("Processor Information", "Processor Frequency", instance);
+                _ = c.NextValue();
+                _cpuPerCoreFrequencyCounters.Add(c);
+            }
+        }
+        catch
+        {
+            _cpuPerCoreFrequencyCounters.Clear();
         }
 
         (_cpuName, _cpuMaxMhz, _gpuName) = LoadCpuAndGpuSpecs();
@@ -1043,19 +1070,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             if (_coreTempCpuSpeedMhz > 0)
             {
-                return _coreTempCpuSpeedMhz;
+                // Core Temp can expose GHz on some systems/builds.
+                return _coreTempCpuSpeedMhz < 20
+                    ? _coreTempCpuSpeedMhz * 1000.0
+                    : _coreTempCpuSpeedMhz;
             }
         }
 
         try
         {
-            using var currentClockSearcher = new ManagementObjectSearcher("SELECT CurrentClockSpeed FROM Win32_Processor");
-            foreach (var obj in currentClockSearcher.Get().OfType<ManagementObject>())
+            var perCore = ReadPerCoreFrequencyAverageMhz();
+            if (perCore > 0)
             {
-                if (double.TryParse(obj["CurrentClockSpeed"]?.ToString(), out var currentClock) && currentClock > 0)
-                {
-                    return currentClock;
-                }
+                return perCore;
+            }
+
+            var powerApiSpeed = ReadCpuSpeedMhzFromPowerApi();
+            if (powerApiSpeed > 0)
+            {
+                return powerApiSpeed;
             }
 
             if (_cpuFrequencyPercentCounter is not null && _cpuMaxMhz > 0)
@@ -1075,6 +1108,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     return direct;
                 }
             }
+
+            // Last resort: many systems report a static base clock here.
+            using var currentClockSearcher = new ManagementObjectSearcher("SELECT CurrentClockSpeed FROM Win32_Processor");
+            foreach (var obj in currentClockSearcher.Get().OfType<ManagementObject>())
+            {
+                if (double.TryParse(obj["CurrentClockSpeed"]?.ToString(), out var currentClock) && currentClock > 0)
+                {
+                    return currentClock;
+                }
+            }
         }
         catch
         {
@@ -1082,6 +1125,83 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         return 0;
+    }
+
+    private double ReadPerCoreFrequencyAverageMhz()
+    {
+        if (_cpuPerCoreFrequencyCounters.Count == 0)
+        {
+            return 0;
+        }
+
+        try
+        {
+            double total = 0;
+            var count = 0;
+            foreach (var c in _cpuPerCoreFrequencyCounters)
+            {
+                var v = c.NextValue();
+                if (v > 0 && v < 10000)
+                {
+                    total += v;
+                    count++;
+                }
+            }
+
+            return count > 0 ? total / count : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static double ReadCpuSpeedMhzFromPowerApi()
+    {
+        var processorCount = Environment.ProcessorCount;
+        if (processorCount <= 0)
+        {
+            return 0;
+        }
+
+        var entrySize = Marshal.SizeOf<ProcessorPowerInformation>();
+        var bufferSize = entrySize * processorCount;
+        var buffer = IntPtr.Zero;
+
+        try
+        {
+            buffer = Marshal.AllocHGlobal(bufferSize);
+            var status = CallNtPowerInformation(ProcessorInformationLevel, IntPtr.Zero, 0, buffer, (uint)bufferSize);
+            if (status != 0)
+            {
+                return 0;
+            }
+
+            double totalMhz = 0;
+            var sampleCount = 0;
+            for (var i = 0; i < processorCount; i++)
+            {
+                var info = Marshal.PtrToStructure<ProcessorPowerInformation>(IntPtr.Add(buffer, i * entrySize));
+                if (info.CurrentMhz > 0)
+                {
+                    totalMhz += info.CurrentMhz;
+                    sampleCount++;
+                }
+            }
+
+            return sampleCount > 0 ? totalMhz / sampleCount : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+        finally
+        {
+            if (buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
     }
 
     private (string CpuName, double MaxMhz, string GpuName) LoadCpuAndGpuSpecs()
@@ -2774,6 +2894,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern bool GlobalMemoryStatusEx([In, Out] MemoryStatusEx lpBuffer);
+    [DllImport("powrprof.dll", SetLastError = false)]
+    private static extern uint CallNtPowerInformation(
+        int informationLevel,
+        IntPtr lpInputBuffer,
+        uint nInputBufferSize,
+        IntPtr lpOutputBuffer,
+        uint nOutputBufferSize);
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetCursorPos(int x, int y);
     [DllImport("shell32.dll", CharSet = CharSet.Auto)]
@@ -2788,6 +2915,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private const uint ShgfiIcon = 0x000000100;
     private const uint ShgfiLargeIcon = 0x000000000;
+    private const int ProcessorInformationLevel = 11;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
     private struct SHFILEINFO
@@ -2813,6 +2941,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         public ulong ullTotalVirtual;
         public ulong ullAvailVirtual;
         public ulong ullAvailExtendedVirtual;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessorPowerInformation
+    {
+        public uint Number;
+        public uint MaxMhz;
+        public uint CurrentMhz;
+        public uint MhzLimit;
+        public uint MaxIdleState;
+        public uint CurrentIdleState;
     }
 
     private sealed class ControllerDeviceItem
@@ -3012,6 +3151,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _cpuCounter?.Dispose();
         _cpuFrequencyCounter?.Dispose();
         _cpuFrequencyPercentCounter?.Dispose();
+        foreach (var c in _cpuPerCoreFrequencyCounters)
+        {
+            c.Dispose();
+        }
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
