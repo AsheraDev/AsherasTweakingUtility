@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <AssemblyName>AshereTweakingUtility</AssemblyName>
-    <Product>Ashere Tweaking Utility</Product>
-    <ApplicationTitle>Ashere Tweaking Utility</ApplicationTitle>
+    <AssemblyName>AsherasTweakingUtility</AssemblyName>
+    <Product>Ashera's Tweaking Utility</Product>
+    <ApplicationTitle>Ashera's Tweaking Utility</ApplicationTitle>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,3 +16,4 @@
   </ItemGroup>
 
 </Project>
+

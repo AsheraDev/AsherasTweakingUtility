@@ -129,7 +129,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         };
         Closing += MainWindow_Closing;
 
-        OutputTextBox.Text = "Ashere Tweaking Utility ready. Click Analyze to inspect current settings.";
+        OutputTextBox.Text = "Ashera's Tweaking Utility ready. Click Analyze to inspect current settings.";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -578,7 +578,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SetDashboardView();
         RefreshTelemetry();
         OutputTextBox.Text =
-            "Ashere Tweaking Utility\n" +
+            "Ashera's Tweaking Utility\n" +
             "=========================\n" +
             $"CPU: {CpuUsageText}\n" +
             $"GPU: {GpuUsageText}\n" +
@@ -1504,7 +1504,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var profileKey = item.InstanceId.Replace("\\", "#");
         try
         {
-            using var appKey = Registry.CurrentUser.CreateSubKey($@"Software\AshereTweakingUtility\ControllerPolling\{profileKey}", true);
+            using var appKey = Registry.CurrentUser.CreateSubKey($@"Software\AsherasTweakingUtility\ControllerPolling\{profileKey}", true);
             appKey?.SetValue("PollingHz", hz, RegistryValueKind.DWord);
             appKey?.SetValue("DisplayName", item.DisplayName, RegistryValueKind.String);
         }
@@ -1608,3 +1608,4 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+

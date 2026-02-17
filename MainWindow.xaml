@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WinOptApp"
         mc:Ignorable="d"
-        Title="Ashere Tweaking Utility"
+        Title="Ashera's Tweaking Utility"
         Height="760"
         Width="1280"
         MinHeight="700"
@@ -125,7 +125,7 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel>
-                    <TextBlock Foreground="#F7FBFF" FontSize="24" FontWeight="Bold" Text="Ashere Tweaking Utility"/>
+                    <TextBlock Foreground="#F7FBFF" FontSize="24" FontWeight="Bold" Text="Ashera's Tweaking Utility"/>
                     <TextBlock Foreground="#A6BCD6" Margin="0,2,0,12" Text="Tweak and recover"/>
                 </StackPanel>
 
@@ -160,7 +160,7 @@
             </Grid.RowDefinitions>
 
             <StackPanel>
-                <TextBlock Foreground="#F7FBFF" FontSize="34" FontWeight="Bold" Text="Ashere Tweaking Utility"/>
+                <TextBlock Foreground="#F7FBFF" FontSize="34" FontWeight="Bold" Text="Ashera's Tweaking Utility"/>
                 <TextBlock Foreground="#A6BCD6" FontSize="16" Margin="0,4,0,0" Text="Performance, Stability, and Recovery in one place"/>
                 <TextBlock Foreground="#A6BCD6"
                            FontSize="12"
@@ -473,3 +473,4 @@
         </Grid>
     </Grid>
 </Window>
+

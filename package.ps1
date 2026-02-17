@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Runtime = "win-x64",
     [string]$Configuration = "Release"
 )
@@ -10,8 +10,8 @@ $projectFile = Join-Path $projectDir "WinOptApp.csproj"
 $publishRoot = Join-Path $projectDir "dist"
 $publishDir = Join-Path $publishRoot "$Runtime-$Configuration"
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$zipPath = Join-Path $publishRoot "AshereTweakingUtility-$Runtime-$stamp.zip"
-$portableExePath = Join-Path $publishRoot "AshereTweakingUtility-$Runtime-$stamp.exe"
+$zipPath = Join-Path $publishRoot "AsherasTweakingUtility-$Runtime-$stamp.zip"
+$portableExePath = Join-Path $publishRoot "AsherasTweakingUtility-$Runtime-$stamp.exe"
 
 Write-Host "Publishing $projectFile ..."
 dotnet publish $projectFile `
@@ -23,7 +23,7 @@ dotnet publish $projectFile `
   -p:EnableCompressionInSingleFile=true `
   -o $publishDir
 
-$builtExe = Join-Path $publishDir "AshereTweakingUtility.exe"
+$builtExe = Join-Path $publishDir "AsherasTweakingUtility.exe"
 if (!(Test-Path $builtExe)) {
     throw "Expected published exe not found: $builtExe"
 }
@@ -43,3 +43,4 @@ Write-Host "Done."
 Write-Host "Publish folder: $publishDir"
 Write-Host "Portable exe: $portableExePath"
 Write-Host "Zip file: $zipPath"
+

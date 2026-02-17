@@ -29,7 +29,7 @@ public sealed class OptimizerService
         return Task.Run(() =>
         {
             var sb = new StringBuilder();
-            sb.AppendLine("Ashere Tweaking Utility Analysis");
+            sb.AppendLine("Ashera's Tweaking Utility Analysis");
             sb.AppendLine(new string('=', 70));
             sb.AppendLine($"Time: {DateTime.Now}");
             sb.AppendLine($"Running as admin: {IsRunningAsAdmin()}");
@@ -206,7 +206,7 @@ public sealed class OptimizerService
                 return sb.ToString();
             }
 
-            var name = $"AshereTweakingUtility-{DateTime.Now:yyyyMMdd-HHmmss}";
+            var name = $"AsherasTweakingUtility-{DateTime.Now:yyyyMMdd-HHmmss}";
             var cmd =
                 $"-NoProfile -ExecutionPolicy Bypass -Command \"Checkpoint-Computer -Description '{name}' -RestorePointType 'MODIFY_SETTINGS'\"";
             var result = RunProcess("powershell.exe", cmd);
@@ -1023,5 +1023,6 @@ public sealed class OptimizerService
         return JsonSerializer.Deserialize<OptimizationState>(json);
     }
 }
+
 
 
