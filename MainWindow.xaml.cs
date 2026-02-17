@@ -94,6 +94,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool _coreTempAvailable;
     private float _coreTempCpuSpeedMhz;
     private float _coreTempPackageTempC;
+    private string _lastCpuTempProvider = "Unavailable";
 
     public MainWindow()
     {
@@ -1919,7 +1920,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!current.HasValue)
         {
             TemperatureValueText = "N/A";
-            TemperatureDetailText = $"Source: {_tempSource} | Sensor unavailable";
+            var src = _tempSource == "CPU" ? _lastCpuTempProvider : "NVIDIA SMI";
+            TemperatureDetailText = $"Source: {_tempSource} ({src}) | Sensor unavailable";
             TemperatureTrendText = "Trend: --";
             return;
         }
@@ -1931,7 +1933,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         TemperatureValueText = $"{current.Value:0.0}°C";
-        TemperatureDetailText = $"Source: {_tempSource} | Min {_tempHistory.Min():0.0}°C  Max {_tempHistory.Max():0.0}°C";
+        var sourceText = _tempSource == "CPU" ? _lastCpuTempProvider : "NVIDIA SMI";
+        TemperatureDetailText = $"Source: {_tempSource} ({sourceText}) | Min {_tempHistory.Min():0.0}°C  Max {_tempHistory.Max():0.0}°C";
         if (_tempHistory.Count >= 2)
         {
             var delta = _tempHistory[^1] - _tempHistory[^2];
@@ -1949,8 +1952,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             if (_coreTempPackageTempC > 0)
             {
+                _lastCpuTempProvider = "Core Temp";
                 return _coreTempPackageTempC;
             }
+        }
+
+        var hwTemp = ReadCpuTempFromHardwareMonitorWmi(out var provider);
+        if (hwTemp.HasValue)
+        {
+            _lastCpuTempProvider = provider;
+            return hwTemp.Value;
         }
 
         try
@@ -1961,18 +1972,74 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 if (double.TryParse(obj["CurrentTemperature"]?.ToString(), out var raw) && raw > 0)
                 {
-                    vals.Add((raw / 10.0) - 273.15);
+                    var c = (raw / 10.0) - 273.15;
+                    if (c is >= 10 and <= 125)
+                    {
+                        vals.Add(c);
+                    }
                 }
             }
 
             if (vals.Count > 0)
             {
+                _lastCpuTempProvider = "ACPI Thermal Zone";
                 return vals.Average();
             }
         }
         catch
         {
             // ignored
+        }
+
+        _lastCpuTempProvider = "Unavailable";
+        return null;
+    }
+
+    private static double? ReadCpuTempFromHardwareMonitorWmi(out string provider)
+    {
+        provider = "Unavailable";
+        foreach (var root in new[] { @"root\LibreHardwareMonitor", @"root\OpenHardwareMonitor" })
+        {
+            try
+            {
+                using var searcher = new ManagementObjectSearcher(
+                    root,
+                    "SELECT Name, Value, SensorType FROM Sensor WHERE SensorType = 'Temperature'");
+                var vals = new List<double>();
+                foreach (var obj in searcher.Get().OfType<ManagementObject>())
+                {
+                    var name = obj["Name"]?.ToString() ?? string.Empty;
+                    if (!name.Contains("CPU", StringComparison.OrdinalIgnoreCase) &&
+                        !name.Contains("Package", StringComparison.OrdinalIgnoreCase) &&
+                        !name.Contains("Tctl", StringComparison.OrdinalIgnoreCase) &&
+                        !name.Contains("CCD", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    if (!double.TryParse(obj["Value"]?.ToString(), out var v))
+                    {
+                        continue;
+                    }
+
+                    if (v is >= 10 and <= 125)
+                    {
+                        vals.Add(v);
+                    }
+                }
+
+                if (vals.Count > 0)
+                {
+                    provider = root.Contains("Libre", StringComparison.OrdinalIgnoreCase)
+                        ? "LibreHardwareMonitor"
+                        : "OpenHardwareMonitor";
+                    return vals.Average();
+                }
+            }
+            catch
+            {
+                // next provider
+            }
         }
 
         return null;
@@ -2063,6 +2130,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _tempHistory.Clear();
         UpdateTempSourceButtons();
         RefreshTemperatureTelemetry();
+    }
+
+    private void GetCoreTempButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://www.alcpu.com/CoreTemp/",
+                UseShellExecute = true
+            });
+            StatusText = "Opened Core Temp download page";
+        }
+        catch
+        {
+            StatusText = "Could not open Core Temp page";
+        }
     }
 
     private void UpdateTempSourceButtons()
