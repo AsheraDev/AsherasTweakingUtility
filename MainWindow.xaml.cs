@@ -2268,7 +2268,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 ActionLabel = def.ActionLabel,
                 Notes = def.Notes,
                 TargetUri = def.TargetUri,
-                IconText = "i",
+                IconText = GetIconText(def.Name),
                 StateText = state
             });
         }
@@ -2315,6 +2315,31 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             new AppRecommendationDefinition("Epic Games Launcher", "Disable startup", "Avoids launcher background polling.", "ms-settings:startupapps", ["EpicGamesLauncher"]),
             new AppRecommendationDefinition("Adobe Updater", "Disable startup", "Reduces periodic updater checks.", "ms-settings:startupapps", ["AdobeARM", "Creative Cloud"])
         ];
+    }
+
+    private static string GetIconText(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "?";
+        }
+
+        if (name.StartsWith("Xbox", StringComparison.OrdinalIgnoreCase))
+        {
+            return "X";
+        }
+
+        if (name.StartsWith("Discord", StringComparison.OrdinalIgnoreCase))
+        {
+            return "D";
+        }
+
+        if (name.StartsWith("OneDrive", StringComparison.OrdinalIgnoreCase))
+        {
+            return "O";
+        }
+
+        return name[..1].ToUpperInvariant();
     }
 
     private static void OpenTargetUri(string? uri)

@@ -230,19 +230,21 @@
                     <TextBlock Foreground="#A6BCD6" Margin="0,2,0,12" Text="Tweak and recover"/>
                 </StackPanel>
 
-                <StackPanel Grid.Row="1" Margin="0,10,0,12">
-                    <TextBlock Foreground="#7EA0C8" FontSize="12" Margin="2,0,0,8" Text="GENERAL"/>
-                    <Button Style="{StaticResource NavButtonStyle}" Content="Home" Click="HomeButton_Click"/>
-                    <Button Style="{StaticResource NavButtonStyle}" Content="System Restore" Click="SystemRestoreButton_Click"/>
-                    <Button Style="{StaticResource NavButtonStyle}" Content="Resources" Click="ResourcesButton_Click"/>
-                    <Button Style="{StaticResource NavButtonStyle}" Content="Fixes" Click="FixesButton_Click"/>
+                <ScrollViewer Grid.Row="1" Margin="0,10,0,12" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <TextBlock Foreground="#7EA0C8" FontSize="12" Margin="2,0,0,8" Text="GENERAL"/>
+                        <Button Style="{StaticResource NavButtonStyle}" Content="Home" Click="HomeButton_Click"/>
+                        <Button Style="{StaticResource NavButtonStyle}" Content="System Restore" Click="SystemRestoreButton_Click"/>
+                        <Button Style="{StaticResource NavButtonStyle}" Content="Resources" Click="ResourcesButton_Click"/>
+                        <Button Style="{StaticResource NavButtonStyle}" Content="Fixes" Click="FixesButton_Click"/>
 
-                    <TextBlock Foreground="#7EA0C8" FontSize="12" Margin="2,16,0,8" Text="TWEAKS"/>
-                    <Button Style="{StaticResource NavButtonStyle}" Content="General Tweaks" Click="GeneralTweaksButton_Click"/>
-                    <Button Style="{StaticResource NavButtonStyle}" Content="Game Profiles" Click="GameProfilesButton_Click"/>
-                    <Button Style="{StaticResource NavButtonStyle}" Content="Startup Optimizer" Click="StartupOptimizerButton_Click"/>
-                    <Button Style="{StaticResource NavButtonStyle}" Content="App Optimizer" Click="AppOptimizerButton_Click"/>
-                </StackPanel>
+                        <TextBlock Foreground="#7EA0C8" FontSize="12" Margin="2,16,0,8" Text="TWEAKS"/>
+                        <Button Style="{StaticResource NavButtonStyle}" Content="General Tweaks" Click="GeneralTweaksButton_Click"/>
+                        <Button Style="{StaticResource NavButtonStyle}" Content="Game Profiles" Click="GameProfilesButton_Click"/>
+                        <Button Style="{StaticResource NavButtonStyle}" Content="Startup Optimizer" Click="StartupOptimizerButton_Click"/>
+                        <Button Style="{StaticResource NavButtonStyle}" Content="App Optimizer" Click="AppOptimizerButton_Click"/>
+                    </StackPanel>
+                </ScrollViewer>
 
                 <StackPanel Grid.Row="3" Margin="0,10,0,0">
                     <Border CornerRadius="10" BorderBrush="#2A4E7F" BorderThickness="1" Background="#0E1A2D" Padding="10">
@@ -728,10 +730,10 @@
                               BorderThickness="1">
                         <DataGrid.Columns>
                             <DataGridCheckBoxColumn Header="Pick" Binding="{Binding IsSelected, Mode=TwoWay}" Width="56"/>
-                            <DataGridTemplateColumn Header="i" Width="44">
+                            <DataGridTemplateColumn Header="Icon" Width="58">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border Width="22" Height="22" CornerRadius="11" Background="#163153" BorderBrush="#315782" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Border Width="28" Height="28" CornerRadius="14" Background="#163153" BorderBrush="#315782" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding IconText}" Foreground="#DCEBFF" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                     </DataTemplate>
