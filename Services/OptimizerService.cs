@@ -28,6 +28,10 @@ public sealed class OptimizerService
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "WinOptApp",
         "managed-tweaks.json");
+    private static readonly object ProcessTargetLock = new();
+    private static CancellationTokenSource? _processTargetCts;
+    private static Task? _processTargetWorker;
+    private static DateTime _lastServiceSweepUtc = DateTime.MinValue;
 
     static OptimizerService()
     {
@@ -36,6 +40,15 @@ public sealed class OptimizerService
             try
             {
                 _ = NtSetTimerResolution(5000, false, out _);
+            }
+            catch
+            {
+                // ignored
+            }
+
+            try
+            {
+                StopProcessTargetRealtimeWorker();
             }
             catch
             {
@@ -1005,7 +1018,7 @@ public sealed class OptimizerService
                 "cloud_sync_off" => GetRegistryDword(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\SettingSync", "SyncPolicy") == 5,
                 "do_solo_mode" => GetRegistryDword(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DODownloadMode") == 0,
                 "process_count_reduction" => GetRegistryDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control", "SvcHostSplitThresholdInKB") == 3670016,
-                "process_target_60_mode" => GetManagedState(tweakKey),
+                "process_target_60_mode" => SyncProcessTargetRealtimeState(GetManagedState(tweakKey)),
                 "amd_chill_off" => GetManagedState(tweakKey),
                 "amd_power_hold" => GetManagedState(tweakKey),
                 "amd_service_trim" => GetManagedState(tweakKey),
@@ -1692,6 +1705,10 @@ public sealed class OptimizerService
                 sb.AppendLine(RunProcess("taskkill", $"/IM {proc} /F"));
             }
 
+            var started = StartProcessTargetRealtimeWorker();
+            sb.AppendLine(started
+                ? "Real-time process trim worker started (runs every ~2 seconds)."
+                : "Real-time process trim worker already running.");
             sb.AppendLine("Target mode enabled. Restart Windows for maximum process-count reduction.");
         }
         else
@@ -1704,6 +1721,8 @@ public sealed class OptimizerService
                 0);
             sb.AppendLine("Reverted service host consolidation.");
             sb.AppendLine(ToggleCompetitiveServiceTrim(false, hardcore: true));
+            StopProcessTargetRealtimeWorker();
+            sb.AppendLine("Real-time process trim worker stopped.");
             sb.AppendLine("Target mode disabled.");
         }
 
@@ -1719,6 +1738,131 @@ public sealed class OptimizerService
         }
 
         return sb.ToString();
+    }
+
+    private static bool StartProcessTargetRealtimeWorker()
+    {
+        lock (ProcessTargetLock)
+        {
+            if (_processTargetWorker is { IsCompleted: false })
+            {
+                return false;
+            }
+
+            _processTargetCts = new CancellationTokenSource();
+            var token = _processTargetCts.Token;
+            _processTargetWorker = Task.Run(async () =>
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        EnforceProcessTargetRealtimePass();
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(2), token);
+                    }
+                    catch
+                    {
+                        break;
+                    }
+                }
+            }, token);
+            return true;
+        }
+    }
+
+    private static void StopProcessTargetRealtimeWorker()
+    {
+        Task? worker;
+        lock (ProcessTargetLock)
+        {
+            if (_processTargetCts is null)
+            {
+                return;
+            }
+
+            _processTargetCts.Cancel();
+            _processTargetCts.Dispose();
+            _processTargetCts = null;
+            worker = _processTargetWorker;
+            _processTargetWorker = null;
+        }
+
+        try
+        {
+            worker?.Wait(1200);
+        }
+        catch
+        {
+            // ignored
+        }
+    }
+
+    private static bool? SyncProcessTargetRealtimeState(bool? enabled)
+    {
+        if (enabled == true)
+        {
+            _ = StartProcessTargetRealtimeWorker();
+        }
+        else if (enabled == false)
+        {
+            StopProcessTargetRealtimeWorker();
+        }
+
+        return enabled;
+    }
+
+    private static void EnforceProcessTargetRealtimePass()
+    {
+        foreach (var name in new[]
+                 {
+                     "OneDrive",
+                     "PhoneExperienceHost",
+                     "YourPhone",
+                     "Widgets",
+                     "XboxPcApp",
+                     "GameBar",
+                     "Copilot",
+                     "SearchHost"
+                 })
+        {
+            try
+            {
+                foreach (var p in Process.GetProcessesByName(name))
+                {
+                    p.Kill(true);
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        if ((DateTime.UtcNow - _lastServiceSweepUtc).TotalSeconds < 20)
+        {
+            return;
+        }
+
+        _lastServiceSweepUtc = DateTime.UtcNow;
+        foreach (var svc in new[] { "XblAuthManager", "XblGameSave", "XboxNetApiSvc", "XboxGipSvc", "PhoneSvc", "WSearch", "SysMain", "WpnService" })
+        {
+            try
+            {
+                _ = RunProcess("sc.exe", $"stop {svc}");
+            }
+            catch
+            {
+                // ignored
+            }
+        }
     }
 
     private static string ApplyPowerHardcoreMode(bool enable)
